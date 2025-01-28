@@ -1,8 +1,15 @@
 #include <bits/stdc++.h>
 
-int main(int argc, char** argv) {
-    std::cout << "Hello world!\n";
+#include "GameServer/GameServer.hpp"
 
+int main(int argc, char** argv) {
+    GameServer gs;
+
+    gs.startServer();
+
+    getchar();
+
+    gs.stopServer();
 
     return 0;
 }
