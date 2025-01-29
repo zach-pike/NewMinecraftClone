@@ -107,6 +107,9 @@ void GameServer::_networkThreadFunc() {
 }
 
 void GameServer::_gameThreadFunc() {
+    // Generate world
+    
+
     int tickC = 0;
 
     while(gameThreadRunning) {

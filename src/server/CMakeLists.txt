@@ -5,6 +5,8 @@ set(
     
     Main.cpp
     GameServer/GameServer.cpp
+    GameServer/ServerWorld/ServerWorld.cpp
+    GameServer/ServerWorld/ServerChunk/ServerChunk.cpp
 )
 
 add_executable(Server ${SERVER_CXX_FILES})
