@@ -1,6 +1,7 @@
 #include "GameServer.hpp"
 
 #include "enet.h"
+#include "Common/PacketType.hpp"
 
 #include <stdexcept>
 #include <functional>
@@ -29,54 +30,68 @@ void GameServer::_networkThreadFunc() {
     while (networkThreadRunning) {
         ENetEvent event;
 
-        int rc = enet_host_service(server, &event, 1000);
-        if (rc == 0) continue; // No event in the last second
-
+        int rc = enet_host_service(server, &event, 0);
         if (rc < 0) {
             // Stop server in future
+        }
+
+        // Send queued messages
+        outQueueLock.lock();
+        for (auto& p : outQueue) {
+            if (enet_peer_send(p.peer, 0, p.packet) < 0) {
+                enet_packet_destroy(p.packet);
+            }
+        }
+        outQueue.clear();
+        outQueueLock.unlock();
+
+        if (rc == 0) {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(50ms);
         }
 
         switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT: {
                 std::cout << "A new client connected!\n";
 
-                const char* serverMessage = "Hello from server!";
-
-                ENetPacket* packet = enet_packet_create(serverMessage, std::strlen(serverMessage), ENET_PACKET_FLAG_RELIABLE);
-
-                if (enet_peer_send(event.peer, 0, packet) != 0) {
-                    std::cerr << "Failed to send packet!" << std::endl;
-                } else {
-                    std::cout << "Packet sent successfully!" << std::endl;
-                }
-
-                enet_host_flush(server);
-
-                // /* Store any relevant client information here. */
-                // event.peer->data = (void*)"Client information";
+                connectedPlayersLock.lock();
+                connectedPlayers.insert({ event.peer, std::nullopt });
+                connectedPlayersLock.unlock();
             } break;
 
             case ENET_EVENT_TYPE_RECEIVE:{
-                
-                /* Clean up the packet now that we're done using it. */
-                enet_packet_destroy (event.packet);
+                ENetPacket* packet = event.packet;
+
+                switch ((PacketType)packet->data[0]) {
+                    case PacketType::PlayerState: {
+                        PlayerState p;
+                        p.decodePacket(packet);
+
+                        connectedPlayers.at(event.peer) = p;
+                    } break;
+
+                    default: {
+                        enet_packet_destroy(packet);
+                    } break;
+                }
+
             } break;
 
-            case ENET_EVENT_TYPE_DISCONNECT:
+            case ENET_EVENT_TYPE_DISCONNECT: {
                 std::cout << "User disconnected.\n";
-                /* Reset the peer's client information. */
-                event.peer->data = NULL;
-                break;
+                connectedPlayersLock.lock();
+                connectedPlayers.erase(event.peer);
+                connectedPlayersLock.unlock();
+            } break;
 
-            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
+            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT: {
                 std::cout << "User timed out.\n";
+                connectedPlayersLock.lock();
+                connectedPlayers.erase(event.peer);
+                connectedPlayersLock.unlock();
+            } break;
 
-                /* Reset the peer's client information. */
-                // event.peer->data = NULL;
-                break;
-
-            case ENET_EVENT_TYPE_NONE:
-                break;
+            case ENET_EVENT_TYPE_NONE: break;
         }
     }
 
@@ -97,4 +112,34 @@ void GameServer::startServer() {
 void GameServer::stopServer() {
     networkThreadRunning = false;
     networkThread.join();
+}
+
+void GameServer::addToOutQueue(ENetPeer* peer, ENetPacket* p) {
+    outQueueLock.lock();
+
+    outQueue.push_back(IdentifiedPacket{
+        .peer = peer,
+        .packet = p
+    });
+
+    outQueueLock.unlock();
+}
+
+void GameServer::printPlayerList() {
+    connectedPlayersLock.lock();
+
+    for (auto& p : connectedPlayers) {
+        printf("Player %x : ", p.first->address.host);
+
+        if (p.second.has_value()) {
+            auto& ps = p.second.value();
+
+            std::cout << "XYZ: " << ps.playerPosition.x << ", " << ps.playerPosition.y << ", " << ps.playerPosition.z << "\n"
+                      << "CameraPitch: " << ps.cameraPitch << " CameraYaw: " << ps.cameraYaw << "\n";
+        } else {
+            std::cout << "No player state available!\n";
+        }
+    }
+
+    connectedPlayersLock.unlock();
 }

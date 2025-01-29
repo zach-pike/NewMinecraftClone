@@ -1,7 +1,5 @@
 #include "GameNetworkClient.hpp"
 
-#include "enet.h"
-
 #include <stdexcept>
 #include <iostream>
 #include <functional>
@@ -46,9 +44,7 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
     }
 
     while (networkThreadRunning) {
-        int rc = enet_host_service(client, &event, 1000);
-
-        if (rc == 0) continue;
+        int rc = enet_host_service(client, &event, 0);
 
         if (rc < 0) {
             // Disconnect user
@@ -65,19 +61,47 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
             return;
         }
 
+        // Send queued messages
+        outQueueLock.lock();
+        for (auto& p : outQueue) {
+            if (enet_peer_send(peer, 0, p) < 0) {
+                enet_packet_destroy(p);
+            }
+        }
+        outQueue.clear();
+        outQueueLock.unlock();
+
+        if (rc == 0) {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(50ms);
+        }
+
         switch (event.type) {
             case ENET_EVENT_TYPE_RECEIVE:{
                 ENetPacket* p = event.packet;
 
-                auto a = std::string(p->data, p->data + p->dataLength);
-
-                std::cout << "Message: \"" << a << "\"\n";
+                inQueueLock.lock();
+                inQueue.push_back(p);
+                inQueueLock.unlock();
 
                 enet_packet_destroy(p);
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT: {
                 std::cout << "Disconnected!";
+
+                networkThreadRunning = false;
+                workerConnected = false;
+
+                enet_peer_reset(peer);
+                enet_host_destroy(client);
+                enet_deinitialize();
+
+                return;
+            } break;
+
+            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT: {
+                std::cout << "Timed out!";
 
                 networkThreadRunning = false;
                 workerConnected = false;
@@ -125,6 +149,9 @@ GameNetworkClient::GameNetworkClient() {}
 GameNetworkClient::~GameNetworkClient() {}
 
 void GameNetworkClient::connectToHost(std::string host, std::uint16_t port) {
+    if (networkThread.joinable())
+        networkThread.join();
+
     networkThreadRunning = true;
     networkThread = std::thread(std::bind(&GameNetworkClient::_networkThreadFunc, this, host, port));
 }
@@ -136,4 +163,27 @@ void GameNetworkClient::disconnect() {
 
 bool GameNetworkClient::isConnected() const {
     return workerConnected;
+}
+
+void GameNetworkClient::addToOutQueue(ENetPacket* p) {
+    outQueueLock.lock();
+    outQueue.push_back(p);
+    outQueueLock.unlock();
+}
+
+bool GameNetworkClient::messagesAvailable() {
+    inQueueLock.lock();
+    bool b = inQueue.size() > 0;
+    inQueueLock.unlock();
+
+    return b;
+}
+
+ENetPacket* GameNetworkClient::popMessage() {
+    inQueueLock.lock();
+    ENetPacket* p = inQueue.back();
+    inQueue.pop_back();
+    inQueueLock.unlock();
+
+    return p;
 }

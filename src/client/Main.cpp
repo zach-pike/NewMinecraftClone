@@ -1,15 +1,21 @@
 #include <bits/stdc++.h>
 
-#include "GameNetworkClient/GameNetworkClient.hpp"
+#include "GameClient/GameClient.hpp"
 
 int main(int argc, char** argv) {
-    GameNetworkClient gc;
+    GameClient gc;
 
-    gc.connectToHost("127.0.0.1", 7777);
+    gc.startGame();
 
-    getchar();
+    while(true) {
+        if (!gc.isRenderThreadRunning()) {
+            break;
+        }
 
-    gc.disconnect();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    gc.stopGame();
 
     return 0;
 }
