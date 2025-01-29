@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <thread>
+#include <map>
 
 #include "GameNetworkClient/GameNetworkClient.hpp"
 
@@ -16,6 +17,8 @@ private:
     void _renderThread();
 
     PlayerState playerData;
+
+    std::map<std::uint64_t, PlayerState> players;
 public:
     GameClient();
     ~GameClient();

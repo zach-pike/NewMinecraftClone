@@ -83,8 +83,6 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
                 inQueueLock.lock();
                 inQueue.push_back(p);
                 inQueueLock.unlock();
-
-                enet_packet_destroy(p);
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT: {

@@ -22,8 +22,25 @@ private:
     std::thread networkThread;
     void _networkThreadFunc();
 
+    std::atomic_bool gameThreadRunning = false;
+    std::thread gameThread;
+    void _gameThreadFunc();
+
     std::mutex outQueueLock;
     std::deque<IdentifiedPacket> outQueue;
+
+    std::mutex broadcastQueueLock;
+    std::deque<ENetPacket*> broadcastQueue;
+
+    std::mutex inQueueLock;
+    std::deque<IdentifiedPacket> inQueue;
+
+    void addToOutQueue(ENetPeer* peer, ENetPacket* p);
+    void addToBroadcastQueue(ENetPacket* p);
+
+    bool messagesAvailable();
+    IdentifiedPacket popMessage();
+
 
 public:
     GameServer();
@@ -32,7 +49,6 @@ public:
     void startServer();
     void stopServer();
 
-    void addToOutQueue(ENetPeer* peer, ENetPacket* p);
 
     void printPlayerList();
 };

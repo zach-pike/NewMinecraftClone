@@ -6,6 +6,9 @@ set(
     Main.cpp
     GameNetworkClient/GameNetworkClient.cpp
     GameClient/GameClient.cpp
+    GL/Shader/Shader.cpp
+    GL/ShaderProgram/ShaderProgram.cpp
+    GL/ShaderLoaders/VertexFragment.cpp
 )
 
 link_directories("${CMAKE_SOURCE_DIR}/lib/GLFW") 

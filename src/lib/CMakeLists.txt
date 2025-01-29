@@ -6,6 +6,7 @@ target_include_directories(ENet PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 
 set(COMMON_SOURCE
     Common/PlayerState/PlayerState.cpp
+    Common/UpdatePlayerState/UpdatePlayerState.cpp
 )
 
 add_library(Common STATIC ${COMMON_SOURCE})

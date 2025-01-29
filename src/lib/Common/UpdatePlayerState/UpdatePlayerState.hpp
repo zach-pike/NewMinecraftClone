@@ -1,17 +1,15 @@
 #pragma once
 
-#include "glm.hpp"
+#include <cstdint>
 #include "enet.h"
 
+#include "Common/PlayerState/PlayerState.hpp"
 #include "Common/Serialize/Serializable.hpp"
 
-class PlayerState : public Serializable {
+class UpdatePlayerState : public Serializable {
 public:
-    glm::vec3 playerPosition;
-    double cameraPitch, cameraYaw;
-
-    PlayerState() = default;
-    ~PlayerState() = default;
+    std::uint64_t userToUpdate;
+    PlayerState playerState;
 
     std::vector<std::uint8_t> serialize() const;
     bool deserialize(const std::vector<std::uint8_t>& data);

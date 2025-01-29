@@ -3,5 +3,6 @@
 #include <cstdint>
 
 enum class PacketType : std::uint8_t {
-    PlayerState = 0
+    PlayerState = 0,
+    UpdatePlayerState = 1,
 };

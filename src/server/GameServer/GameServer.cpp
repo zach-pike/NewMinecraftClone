@@ -3,6 +3,9 @@
 #include "enet.h"
 #include "Common/PacketType.hpp"
 
+#include "Common/PlayerState/PlayerState.hpp"
+#include "Common/UpdatePlayerState/UpdatePlayerState.hpp"
+
 #include <stdexcept>
 #include <functional>
 #include <iostream>
@@ -45,6 +48,14 @@ void GameServer::_networkThreadFunc() {
         outQueue.clear();
         outQueueLock.unlock();
 
+        // Send broadcast messages
+        broadcastQueueLock.lock();
+        for (auto& p : broadcastQueue) {
+            enet_host_broadcast(server, 0, p);
+        }
+        broadcastQueue.clear();
+        broadcastQueueLock.unlock();
+
         if (rc == 0) {
             using namespace std::chrono_literals;
             std::this_thread::sleep_for(50ms);
@@ -62,18 +73,12 @@ void GameServer::_networkThreadFunc() {
             case ENET_EVENT_TYPE_RECEIVE:{
                 ENetPacket* packet = event.packet;
 
-                switch ((PacketType)packet->data[0]) {
-                    case PacketType::PlayerState: {
-                        PlayerState p;
-                        p.decodePacket(packet);
-
-                        connectedPlayers.at(event.peer) = p;
-                    } break;
-
-                    default: {
-                        enet_packet_destroy(packet);
-                    } break;
-                }
+                inQueueLock.lock();
+                inQueue.push_back(IdentifiedPacket{
+                    .peer = event.peer,
+                    .packet = packet
+                });
+                inQueueLock.unlock();
 
             } break;
 
@@ -101,17 +106,88 @@ void GameServer::_networkThreadFunc() {
     enet_deinitialize();
 }
 
+void GameServer::_gameThreadFunc() {
+    int tickC = 0;
+
+    while(gameThreadRunning) {
+        auto tickBegin = std::chrono::steady_clock::now();
+
+        // Do work here
+        // Process incoming messages
+        inQueueLock.lock();
+
+        for (auto& msgs : inQueue) {
+            // Get first byte of packet to determine type
+
+            assert(msgs.packet->dataLength > 0);
+            PacketType pt = (PacketType)msgs.packet->data[0];
+
+            switch(pt) {
+                case PacketType::PlayerState: {
+                    PlayerState ps;
+                    ps.decodePacket(msgs.packet);
+
+                    connectedPlayersLock.lock();
+                    connectedPlayers.at(msgs.peer) = ps;
+                    connectedPlayersLock.unlock();
+                } break;
+            }
+        }
+
+        inQueue.clear();
+        inQueueLock.unlock();
+
+        if (tickC % 5 == 0) {
+            // Send out player position data
+            connectedPlayersLock.lock();
+            for (auto& player : connectedPlayers) {
+                if (!player.second.has_value()) continue;
+
+                std::uint64_t id = *(std::uint64_t*)(player.first->address.host.u.Byte) + player.first->address.port;
+
+                UpdatePlayerState ups;
+                ups.userToUpdate = id;
+                ups.playerState = player.second.value();
+                
+                ENetPacket* p = ups.convToPacket();
+
+                addToBroadcastQueue(p);
+            }
+            connectedPlayersLock.unlock();
+        }
+
+
+        tickC ++;
+
+        // End of tick
+        auto tickEnd = std::chrono::steady_clock::now();
+        std::int64_t diff = (tickEnd - tickBegin).count();
+
+        // If tick took less than 50ms to complete than sleep for rest of time
+        if (diff < (1e6 * 50)) {
+            std::int64_t sleepTime = (1e6 * 50) - diff;
+            std::this_thread::sleep_for(std::chrono::nanoseconds(sleepTime));
+        }
+    }
+}
+
 GameServer::GameServer() {}
 GameServer::~GameServer() {}
 
 void GameServer::startServer() {
     networkThreadRunning = true;
     networkThread = std::thread(std::bind(&GameServer::_networkThreadFunc, this));
+
+    gameThreadRunning = true;
+    gameThread = std::thread(std::bind(&GameServer::_gameThreadFunc, this));
 }
 
 void GameServer::stopServer() {
     networkThreadRunning = false;
     networkThread.join();
+
+    gameThreadRunning = false;
+    gameThread.join();
 }
 
 void GameServer::addToOutQueue(ENetPeer* peer, ENetPacket* p) {
@@ -123,6 +199,14 @@ void GameServer::addToOutQueue(ENetPeer* peer, ENetPacket* p) {
     });
 
     outQueueLock.unlock();
+}
+
+void GameServer::addToBroadcastQueue(ENetPacket* p) {
+    broadcastQueueLock.lock();
+
+    broadcastQueue.push_back(p);
+
+    broadcastQueueLock.unlock();
 }
 
 void GameServer::printPlayerList() {
@@ -142,4 +226,22 @@ void GameServer::printPlayerList() {
     }
 
     connectedPlayersLock.unlock();
+}
+
+bool GameServer::messagesAvailable() {
+    inQueueLock.lock();
+    bool b = inQueue.size() > 0;
+    inQueueLock.unlock();
+    return b;
+}
+
+GameServer::IdentifiedPacket GameServer::popMessage() {
+    inQueueLock.lock();
+
+    IdentifiedPacket b = inQueue.back();
+    inQueue.pop_back();
+
+    inQueueLock.unlock();
+
+    return b;
 }
