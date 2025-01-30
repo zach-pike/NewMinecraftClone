@@ -2,10 +2,12 @@
 
 #include <atomic>
 #include <thread>
+#include <memory>
 #include <map>
 
-#include "GameNetworkClient/GameNetworkClient.hpp"
+#include "ChunkManager/ChunkManager.hpp"
 
+#include "GameNetworkClient/GameNetworkClient.hpp"
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 
 class GameClient {
@@ -16,6 +18,7 @@ private:
     std::thread renderThread;
     void _renderThread();
 
+    std::shared_ptr<ChunkManager> chunkManager = nullptr;
     PlayerState playerData;
 
     std::map<std::uint64_t, PlayerState> players;

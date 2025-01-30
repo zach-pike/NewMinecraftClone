@@ -1,6 +1,8 @@
-#pragma once
-
 #include "ServerChunk.hpp"
+
+ServerChunk::ServerChunk() {
+    blockData.fill(0);
+}
 
 void ServerChunk::setChunkBlock(int x, int y, int z, std::uint8_t v) {
     blockData.at(x + z * CHUNK_X + y * CHUNK_X * CHUNK_Z) = v;

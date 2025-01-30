@@ -184,6 +184,24 @@ void GameClient::_renderThread() {
 
     int fc = 0;
 
+    chunkManager = std::make_shared<ChunkManager>();
+    auto renderInfo = std::make_shared<ChunkRenderInfo>();
+
+    auto myChunk = std::make_shared<Chunk>();
+
+    myChunk->setChunkBlock(BlockCoordinate{0, 0, 0}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{0, 1, 0}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{0, 0, 1}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{0, 1, 1}, 1);
+
+    myChunk->setChunkBlock(BlockCoordinate{1, 0, 0}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{1, 1, 0}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{1, 0, 1}, 1);
+    myChunk->setChunkBlock(BlockCoordinate{1, 1, 1}, 1);
+    myChunk->drawChunk(ChunkCoordinate{ 0, 0, 0 }, *chunkManager);
+
+    chunkManager->getChunks().insert({ ChunkCoordinate{ 0, 0, 0 }, myChunk });
+
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
         // Do network loop
@@ -286,7 +304,6 @@ void GameClient::_renderThread() {
             playerData.cameraPitch = std::min(1.5f*M_PI - .01, std::max((double)M_PI_2 + .01, playerData.cameraPitch + mouseDeltaY * mouseSens));
         }
 
-        glm::mat4 model = glm::mat4(1);
         glm::mat4 view = glm::lookAt(
                                         playerData.playerPosition + glm::vec3(0, 2, 0), 
                                         playerData.playerPosition + glm::vec3(0, 2, 0) + getLookingVector(playerData.cameraPitch, playerData.cameraYaw),
@@ -294,9 +311,9 @@ void GameClient::_renderThread() {
                                     );
         glm::mat4 projection = glm::perspective(glm::radians(70.f), aspectRatio, 0.01f, 100.f);
 
-        glm::mat4 MVP = projection * view;
+        glm::mat4 viewProjection = projection * view;
 
-        glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &MVP[0][0]);
+        glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &viewProjection[0][0]);
 
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
@@ -304,7 +321,7 @@ void GameClient::_renderThread() {
         glBindBuffer(GL_ARRAY_BUFFER, playerVertexBuffer);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-            playerShader->use();
+        playerShader->use();
         for (auto& player : players) {
             glBindBuffer(GL_ARRAY_BUFFER, playerUVBuffer);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -316,6 +333,8 @@ void GameClient::_renderThread() {
 
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
+
+        chunkManager->renderWorld(renderInfo, viewProjection);
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -339,6 +358,8 @@ void GameClient::_renderThread() {
 
         fc++;
     }
+
+    chunkManager->unloadChunksGracefully();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

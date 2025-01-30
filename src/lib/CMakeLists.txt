@@ -4,6 +4,9 @@ add_library(ENet STATIC ENetImpl.cpp)
 target_link_libraries(ENet ws2_32 winmm)
 target_include_directories(ENet PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 
+add_library(STBImage STATIC stb_image_impl.cpp)
+target_include_directories(STBImage PRIVATE ${CMAKE_SOURCE_DIR}/lib)
+
 set(COMMON_SOURCE
     Common/Types.cpp
 

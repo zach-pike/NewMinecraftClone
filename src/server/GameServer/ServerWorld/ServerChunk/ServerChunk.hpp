@@ -4,16 +4,14 @@
 #include <cstdint>
 #include <vector>
 
-#define CHUNK_X 16
-#define CHUNK_Y 16
-#define CHUNK_Z 16
+#include "Common/Types.hpp"
 
 class ServerChunk {
 private:
     std::array<std::uint8_t, CHUNK_X * CHUNK_Y * CHUNK_Z> blockData;
 
 public:
-    ServerChunk() = default;
+    ServerChunk();
     ~ServerChunk() = default;
 
     void setChunkBlock(int x, int y, int z, std::uint8_t v);
