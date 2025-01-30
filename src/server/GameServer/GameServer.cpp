@@ -5,11 +5,14 @@
 
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
+#include "Common/Packets/ChunkRequest/ChunkRequest.hpp"
+#include "Common/Packets/ChunkResponse/ChunkResponse.hpp"
 
 #include <stdexcept>
 #include <functional>
 #include <iostream>
 #include <cstring>
+
 
 #define MAX_CLIENTS 32
 
@@ -133,6 +136,19 @@ void GameServer::_gameThreadFunc() {
                     connectedPlayersLock.lock();
                     connectedPlayers.at(msgs.peer) = ps;
                     connectedPlayersLock.unlock();
+                } break;
+
+                case PacketType::ChunkRequest: {
+                    ChunkRequest cr;
+                    cr.decodePacket(msgs.packet);
+
+                    std::shared_ptr<ServerChunk> chunk = world.getChunk(cr.requestedChunk);
+
+                    ChunkResponse cresp;
+                    cresp.requestecChunk = cr.requestedChunk;
+                    cresp.blockData = chunk->getBlockData();
+
+                    addToOutQueue(msgs.peer, cresp.convToPacket());
                 } break;
             }
         }

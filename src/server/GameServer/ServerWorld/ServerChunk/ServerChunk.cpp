@@ -19,3 +19,7 @@ void ServerChunk::fillBlocks(int x1, int y1, int z1, int x2, int y2, int z2, std
         }
     }
 }
+
+std::vector<std::uint8_t> ServerChunk::getBlockData() const {
+    return std::move(std::vector<std::uint8_t>(blockData.begin(), blockData.end()));
+}

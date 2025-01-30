@@ -8,6 +8,8 @@
 
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 
+#include "ServerWorld/ServerWorld.hpp"
+
 class GameServer {
 public:
     struct IdentifiedPacket {
@@ -41,14 +43,14 @@ private:
     bool messagesAvailable();
     IdentifiedPacket popMessage();
 
-
+    ServerWorld world;
 public:
     GameServer();
     ~GameServer();
 
     void startServer();
     void stopServer();
-
+    
 
     void printPlayerList();
 };

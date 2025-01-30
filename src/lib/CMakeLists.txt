@@ -6,8 +6,11 @@ target_include_directories(ENet PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 
 set(COMMON_SOURCE
     Common/Types.cpp
+
     Common/Packets/PlayerState/PlayerState.cpp
     Common/Packets/UpdatePlayerState/UpdatePlayerState.cpp
+    Common/Packets/ChunkRequest/ChunkRequest.cpp
+    Common/Packets/ChunkResponse/ChunkResponse.cpp
 )
 
 add_library(Common STATIC ${COMMON_SOURCE})

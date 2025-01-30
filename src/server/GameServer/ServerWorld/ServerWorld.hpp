@@ -14,4 +14,7 @@ public:
     ~ServerWorld() = default;
 
     void generateWorld();
+
+    void generateChunk(ChunkCoordinate c);
+    std::shared_ptr<ServerChunk> getChunk(ChunkCoordinate c);
 };
