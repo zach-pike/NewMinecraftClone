@@ -1,13 +1,14 @@
 #pragma once
 
 #include <map>
+#include <memory>
 
 #include "Common/Types.hpp"
 #include "ServerChunk/ServerChunk.hpp"
 
 class ServerWorld {
 private:
-    std::map<ChunkCoordinate, ServerChunk> worldChunks;
+    std::map<ChunkCoordinate, std::shared_ptr<ServerChunk>> worldChunks;
 public:
     ServerWorld() = default;
     ~ServerWorld() = default;

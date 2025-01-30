@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "enet.h"
 
-#include "Common/PlayerState/PlayerState.hpp"
+#include "Common/Packets/PlayerState/PlayerState.hpp"
 #include "Common/Serialize/Serializable.hpp"
 
 class UpdatePlayerState : public Serializable {

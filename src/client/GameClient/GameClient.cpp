@@ -4,8 +4,8 @@
 
 #include "GL/ShaderLoaders/VertexFragment.hpp"
 
-#include "Common/PacketType.hpp"
-#include "Common/UpdatePlayerState/UpdatePlayerState.hpp"
+#include "Common/Packets/PacketType.hpp"
+#include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"

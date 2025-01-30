@@ -1,7 +1,7 @@
 #include "UpdatePlayerState.hpp"
 
 #include "Common/Serialize/Serializer.hpp"
-#include "Common/PacketType.hpp"
+#include "Common/Packets/PacketType.hpp"
 
 std::vector<std::uint8_t> UpdatePlayerState::serialize() const {
     Serializer s;

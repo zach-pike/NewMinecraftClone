@@ -1,10 +1,10 @@
 #include "GameServer.hpp"
 
 #include "enet.h"
-#include "Common/PacketType.hpp"
+#include "Common/Packets/PacketType.hpp"
 
-#include "Common/PlayerState/PlayerState.hpp"
-#include "Common/UpdatePlayerState/UpdatePlayerState.hpp"
+#include "Common/Packets/PlayerState/PlayerState.hpp"
+#include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
 
 #include <stdexcept>
 #include <functional>

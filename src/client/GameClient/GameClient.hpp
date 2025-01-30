@@ -6,7 +6,7 @@
 
 #include "GameNetworkClient/GameNetworkClient.hpp"
 
-#include "Common/PlayerState/PlayerState.hpp"
+#include "Common/Packets/PlayerState/PlayerState.hpp"
 
 class GameClient {
 private:

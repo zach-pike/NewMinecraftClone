@@ -5,8 +5,9 @@ target_link_libraries(ENet ws2_32 winmm)
 target_include_directories(ENet PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 
 set(COMMON_SOURCE
-    Common/PlayerState/PlayerState.cpp
-    Common/UpdatePlayerState/UpdatePlayerState.cpp
+    Common/Types.cpp
+    Common/Packets/PlayerState/PlayerState.cpp
+    Common/Packets/UpdatePlayerState/UpdatePlayerState.cpp
 )
 
 add_library(Common STATIC ${COMMON_SOURCE})

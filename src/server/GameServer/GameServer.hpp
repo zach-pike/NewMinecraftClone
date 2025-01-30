@@ -6,7 +6,7 @@
 #include <map>
 #include <optional>
 
-#include "Common/PlayerState/PlayerState.hpp"
+#include "Common/Packets/PlayerState/PlayerState.hpp"
 
 class GameServer {
 public:
