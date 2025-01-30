@@ -7,7 +7,7 @@
 
 class ChunkResponse : public Serializable {
 public:
-    ChunkCoordinate requestecChunk;
+    ChunkCoordinate requestedChunk;
     std::vector<std::uint8_t> blockData;
 
     ChunkResponse() = default;

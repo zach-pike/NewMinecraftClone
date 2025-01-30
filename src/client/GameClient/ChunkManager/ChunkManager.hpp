@@ -21,4 +21,6 @@ public:
     void renderWorld(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm::mat4 viewProjection);
 
     void unloadChunksGracefully();
+
+    void tick();
 };

@@ -19,3 +19,9 @@ void ChunkManager::renderWorld(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm
 void ChunkManager::unloadChunksGracefully() {
     chunks.clear();
 }
+
+void ChunkManager::tick() {
+    for (auto& kv : chunks) {
+        kv.second->drawChunk(kv.first, *this);
+    }
+}

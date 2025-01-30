@@ -43,6 +43,7 @@ void Chunk::createBuffers() {
     glGenBuffers(1, &vertexTextureBuffer);
 
     buffersReady = true;
+    meshUpToDate = true;
 }
 
 void Chunk::deleteBuffers() {

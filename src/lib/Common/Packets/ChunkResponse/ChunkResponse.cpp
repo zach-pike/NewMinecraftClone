@@ -4,23 +4,18 @@
 #include "Common/Packets/PacketType.hpp"
 
 std::vector<std::uint8_t> ChunkResponse::serialize() const {
-    Serializer s;
+    std::vector<std::uint8_t> bytes;
+    bytes.push_back((std::uint8_t)PacketType::ChunkResponse);
+    bytes.insert(bytes.end(), blockData.begin(), blockData.end());
 
-    s << PacketType::ChunkResponse;
-    s << blockData;
-
-    return s.getBytes();
+    return std::move(bytes);
 }
 
 bool ChunkResponse::deserialize(const std::vector<std::uint8_t>& data) {
-    Serializer s(data);
+    assert(data.size() == ( 1 + (CHUNK_X * CHUNK_Y * CHUNK_Z)));
+    assert((PacketType)data[0] == PacketType::ChunkResponse);
 
-    s >> blockData;
-    
-    PacketType pt;
-    s >> pt;
-
-    assert(pt == PacketType::ChunkResponse);
+    blockData.insert(blockData.begin(), data.begin() + 1, data.end());
 
     return true;
 }

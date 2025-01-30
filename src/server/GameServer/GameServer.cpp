@@ -142,10 +142,12 @@ void GameServer::_gameThreadFunc() {
                     ChunkRequest cr;
                     cr.decodePacket(msgs.packet);
 
+                    std::cout << cr.requestedChunk.x << ' ' << cr.requestedChunk.y << ' ' << cr.requestedChunk.z << '\n';
+
                     std::shared_ptr<ServerChunk> chunk = world.getChunk(cr.requestedChunk);
 
                     ChunkResponse cresp;
-                    cresp.requestecChunk = cr.requestedChunk;
+                    cresp.requestedChunk = cr.requestedChunk;
                     cresp.blockData = chunk->getBlockData();
 
                     addToOutQueue(msgs.peer, cresp.convToPacket());

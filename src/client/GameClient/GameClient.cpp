@@ -6,6 +6,8 @@
 
 #include "Common/Packets/PacketType.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
+#include "Common/Packets/ChunkRequest/ChunkRequest.hpp"
+#include "Common/Packets/ChunkResponse/ChunkResponse.hpp"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -95,6 +97,11 @@ static const GLfloat playerUVData[] = {
 	1.000004f, 1.0f-0.671847f, 
 	0.667979f, 1.0f-0.335851f
 };
+
+template <typename T>
+static T mod(T a, T b) {
+    return (a % b + b) % b;
+}
 
 
 glm::vec3 getLookingVector(float pitch, float yaw) {
@@ -187,23 +194,14 @@ void GameClient::_renderThread() {
     chunkManager = std::make_shared<ChunkManager>();
     auto renderInfo = std::make_shared<ChunkRenderInfo>();
 
-    auto myChunk = std::make_shared<Chunk>();
-
-    myChunk->setChunkBlock(BlockCoordinate{0, 0, 0}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{0, 1, 0}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{0, 0, 1}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{0, 1, 1}, 1);
-
-    myChunk->setChunkBlock(BlockCoordinate{1, 0, 0}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{1, 1, 0}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{1, 0, 1}, 1);
-    myChunk->setChunkBlock(BlockCoordinate{1, 1, 1}, 1);
-    myChunk->drawChunk(ChunkCoordinate{ 0, 0, 0 }, *chunkManager);
-
-    chunkManager->getChunks().insert({ ChunkCoordinate{ 0, 0, 0 }, myChunk });
-
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
+        int chunkX = (int)playerData.playerPosition.x / CHUNK_X;
+        int chunkY = (int)playerData.playerPosition.y / CHUNK_Y;
+        int chunkZ = (int)playerData.playerPosition.z / CHUNK_Z;
+
+        ChunkCoordinate cc{ chunkX, chunkY, chunkZ };
+
         // Do network loop
         while(networkClient.messagesAvailable()) {
             auto message = networkClient.popMessage();
@@ -218,12 +216,31 @@ void GameClient::_renderThread() {
                     
                     players[ups.userToUpdate] = ups.playerState;
                 } break;
+
+                case PacketType::ChunkResponse: {
+                    ChunkResponse cr;
+                    cr.decodePacket(message);
+
+                    auto chunk = std::make_shared<Chunk>();
+                    chunk->setBlockData(cr.blockData);
+
+                    std::cout << "Recived chunk response for chunk " << cr.requestedChunk.x << ' ' << cr.requestedChunk.y << ' ' << cr.requestedChunk.z << '\n';
+
+                    chunkManager->getChunks().insert({ cr.requestedChunk, chunk });
+                } break;
             }
         }
 
         if (fc % 20 == 0) {
             ENetPacket* p = playerData.convToPacket();
             networkClient.addToOutQueue(p);
+        }
+
+        if (fc % 60 == 0 && networkClient.isConnected() && chunkManager->getChunks().count(cc) < 1) {
+            ChunkRequest cr;
+            cr.requestedChunk = cc;
+
+            networkClient.addToOutQueue(cr.convToPacket());
         }
 
         if (!renderThreadRunning) break;
@@ -335,12 +352,15 @@ void GameClient::_renderThread() {
         glDisableVertexAttribArray(1);
 
         chunkManager->renderWorld(renderInfo, viewProjection);
+        chunkManager->tick();
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         
         ImGui::Begin("Connection window");
+            ImGui::Text("Chunk X: %d, Y: %d, Z: %d", chunkX, chunkY, chunkZ);
+
             ImGui::InputText("Host IP", hostIP, 20);
             ImGui::InputInt("Host Port", &port);
 
@@ -360,7 +380,7 @@ void GameClient::_renderThread() {
     }
 
     chunkManager->unloadChunksGracefully();
-
+    
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
