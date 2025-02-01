@@ -19,6 +19,7 @@
 #include "imgui_impl_opengl3.h"
 
 #include <iostream>
+#include <algorithm>
 
 static const GLfloat playerVertexData[] = { 
 	-1.0f,-1.0f,-1.0f,
@@ -194,11 +195,13 @@ void GameClient::_renderThread() {
     chunkManager = std::make_shared<ChunkManager>();
     auto renderInfo = std::make_shared<ChunkRenderInfo>();
 
+    std::vector<ChunkCoordinate> requestedChunks;
+
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
-        int chunkX = (int)playerData.playerPosition.x / CHUNK_X;
-        int chunkY = (int)playerData.playerPosition.y / CHUNK_Y;
-        int chunkZ = (int)playerData.playerPosition.z / CHUNK_Z;
+        int chunkX = floorf(playerData.playerPosition.x / CHUNK_X);
+        int chunkY = floorf(playerData.playerPosition.y / CHUNK_Y);
+        int chunkZ = floorf(playerData.playerPosition.z / CHUNK_Z);
 
         ChunkCoordinate cc{ chunkX, chunkY, chunkZ };
 
@@ -220,13 +223,16 @@ void GameClient::_renderThread() {
                 case PacketType::ChunkResponse: {
                     ChunkResponse cr;
                     cr.decodePacket(message);
+                    auto p = std::find(requestedChunks.begin(), requestedChunks.end(), cr.requestedChunk);
+                    
+                    if (p != requestedChunks.end())
+                        requestedChunks.erase(p);
 
                     auto chunk = std::make_shared<Chunk>();
                     chunk->setBlockData(cr.blockData);
 
-                    std::cout << "Recived chunk response for chunk " << cr.requestedChunk.x << ' ' << cr.requestedChunk.y << ' ' << cr.requestedChunk.z << '\n';
-
                     chunkManager->getChunks().insert({ cr.requestedChunk, chunk });
+
                 } break;
             }
         }
@@ -236,11 +242,14 @@ void GameClient::_renderThread() {
             networkClient.addToOutQueue(p);
         }
 
-        if (fc % 60 == 0 && networkClient.isConnected() && chunkManager->getChunks().count(cc) < 1) {
-            ChunkRequest cr;
-            cr.requestedChunk = cc;
+        if (networkClient.isConnected()) {
+            bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();
+            if (fc % 50 == 0 && chunkManager->getChunks().count(cc) < 1 && !hasRequestedChunkAlready) {
+                ChunkRequest cr;
+                cr.requestedChunk = cc;
 
-            networkClient.addToOutQueue(cr.convToPacket());
+                networkClient.addToOutQueue(cr.convToPacket());
+            }
         }
 
         if (!renderThreadRunning) break;
@@ -330,19 +339,18 @@ void GameClient::_renderThread() {
 
         glm::mat4 viewProjection = projection * view;
 
-        glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &viewProjection[0][0]);
-
+        playerShader->use();
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
 
         glBindBuffer(GL_ARRAY_BUFFER, playerVertexBuffer);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-        playerShader->use();
-        for (auto& player : players) {
-            glBindBuffer(GL_ARRAY_BUFFER, playerUVBuffer);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+        glBindBuffer(GL_ARRAY_BUFFER, playerUVBuffer);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
+        glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &viewProjection[0][0]);
+        for (auto& player : players) {
             glUniform3fv(positionUniform, 1, &player.second.playerPosition[0]);
 
             glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -360,6 +368,7 @@ void GameClient::_renderThread() {
         
         ImGui::Begin("Connection window");
             ImGui::Text("Chunk X: %d, Y: %d, Z: %d", chunkX, chunkY, chunkZ);
+            ImGui::Text("XYZ: %.2f %.2f %.2f", playerData.playerPosition.x, playerData.playerPosition.y, playerData.playerPosition.z);
 
             ImGui::InputText("Host IP", hostIP, 20);
             ImGui::InputInt("Host Port", &port);
@@ -368,6 +377,14 @@ void GameClient::_renderThread() {
                 networkClient.connectToHost(std::string(hostIP), port);
             } else if (networkClient.isConnected()) {
                 ImGui::Text("Connected!");
+            }
+
+            if (ImGui::Button("Send Request")) {
+                ChunkCoordinate p{ 0, 0, 0 };
+                ChunkRequest cr;
+                cr.requestedChunk = p;
+
+                networkClient.addToOutQueue(cr.convToPacket()); 
             }
         ImGui::End();
 

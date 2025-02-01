@@ -4,7 +4,7 @@ void ServerWorld::generateWorld() {}
 
 void ServerWorld::generateChunk(ChunkCoordinate c) {
     auto chunk = std::make_shared<ServerChunk>();
-    chunk->fillBlocks(0, 0, 0, 14, 1, 14, 1);
+    chunk->fillBlocks(0, 0, 0, 15, 0, 15, 1);
     worldChunks.insert({ c, chunk });
 }
 

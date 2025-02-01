@@ -6,16 +6,19 @@
 std::vector<std::uint8_t> ChunkResponse::serialize() const {
     std::vector<std::uint8_t> bytes;
     bytes.push_back((std::uint8_t)PacketType::ChunkResponse);
+    bytes.insert(bytes.end(), (std::uint8_t*)&requestedChunk, (std::uint8_t*)&requestedChunk + sizeof(ChunkCoordinate));
     bytes.insert(bytes.end(), blockData.begin(), blockData.end());
 
     return std::move(bytes);
 }
 
 bool ChunkResponse::deserialize(const std::vector<std::uint8_t>& data) {
-    assert(data.size() == ( 1 + (CHUNK_X * CHUNK_Y * CHUNK_Z)));
+    assert(data.size() == ( 1 + sizeof(ChunkCoordinate) + (CHUNK_X * CHUNK_Y * CHUNK_Z)));
     assert((PacketType)data[0] == PacketType::ChunkResponse);
 
-    blockData.insert(blockData.begin(), data.begin() + 1, data.end());
+    requestedChunk = *(ChunkCoordinate*)(data.data() + 1);
+
+    blockData.insert(blockData.begin(), data.begin() + 1 + sizeof(ChunkCoordinate), data.end());
 
     return true;
 }

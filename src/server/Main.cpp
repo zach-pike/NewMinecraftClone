@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
             gs.printPlayerList();
         } else {
             gs.stopServer();
+            break;
         }
     }
     

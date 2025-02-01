@@ -7,7 +7,8 @@
 
 #include "GameClient/ChunkManager/ChunkManager.hpp"
 
-#define ReverseChunkIndexFormula(csx, csz, idx) glm::vec3( \
+#define ChunkIndexFormula(csx, csz, x, y, z) (x + z * csx + y * csx * csz)
+#define ReverseChunkIndexFormula(csx, csz, idx) glm::ivec3( \
     (idx % csx), \
     (idx / (csx * csz)), \
     ((idx / csx) % csz) \
@@ -64,12 +65,11 @@ Chunk::~Chunk() {
     deleteBuffers();
 }
 
-void Chunk::setBlockData(std::span<std::uint8_t> data) {
+void Chunk::setBlockData(std::vector<std::uint8_t>& data) {
     assert(data.size() == (CHUNK_X * CHUNK_Y * CHUNK_Z));
-
     std::copy(data.begin(), data.end(),  blockData.begin());
-
-    meshUpToDate = true;
+    
+    meshUpToDate = false;
 }
 
 void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
@@ -146,8 +146,12 @@ void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
     };
     
     for (int i=0; i<(CHUNK_X * CHUNK_Y * CHUNK_Z); i++) {
-        glm::vec3 p = ReverseChunkIndexFormula(CHUNK_X, CHUNK_Z, i);
-        std::uint8_t b = getChunkBlock(BlockCoordinate{ (int)p.x, (int)p.y, (int)p.z });
+        glm::ivec3 p = ReverseChunkIndexFormula(CHUNK_X, CHUNK_Z, i);
+        std::uint8_t b = getChunkBlock(BlockCoordinate{ p.x, p.y, p.z });
+
+        if (b > 1) {
+            std::cout << "Dirt block!\n";
+        }
 
         if (b != 0)
             addBlock(p, b - 1);
@@ -199,9 +203,13 @@ void Chunk::renderChunk(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm::mat4 
 }
 
 void Chunk::setChunkBlock(BlockCoordinate b, std::uint8_t v) {
-    blockData.at(b.x + b.z * CHUNK_X + b.y * CHUNK_X * CHUNK_Z) = v;
+    blockData.at(ChunkIndexFormula(CHUNK_X, CHUNK_Z, b.x, b.y, b.z)) = v;
 }
 
 std::uint8_t Chunk::getChunkBlock(BlockCoordinate b) const {
-    return blockData.at(b.x + b.z * CHUNK_X + b.y * CHUNK_X * CHUNK_Z);
+    return blockData.at(ChunkIndexFormula(CHUNK_X, CHUNK_Z, b.x, b.y, b.z));
+}
+
+void Chunk::tick() {
+
 }

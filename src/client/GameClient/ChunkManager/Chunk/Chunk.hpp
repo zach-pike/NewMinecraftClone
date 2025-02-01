@@ -37,11 +37,13 @@ public:
     Chunk(Chunk&&) = delete;
     void operator=(Chunk&&) = delete;
 
-    void setBlockData(std::span<std::uint8_t> data);
+    void setBlockData(std::vector<std::uint8_t>& data);
 
     void drawChunk(ChunkCoordinate cc, ChunkManager& world);
     void renderChunk(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm::mat4 MVP);
 
     void setChunkBlock(BlockCoordinate v, std::uint8_t block);
     std::uint8_t getChunkBlock(BlockCoordinate v) const;
+
+    void tick();
 };

@@ -103,7 +103,7 @@ void GameServer::_networkThreadFunc() {
         }
     }
 
-    std::cout << "Server closed!\n";
+    std::cout << "Network Server closed!\n";
 
     enet_host_destroy(server);
     enet_deinitialize();
@@ -111,7 +111,7 @@ void GameServer::_networkThreadFunc() {
 
 void GameServer::_gameThreadFunc() {
     // Generate world
-    
+
 
     int tickC = 0;
 
@@ -141,9 +141,7 @@ void GameServer::_gameThreadFunc() {
                 case PacketType::ChunkRequest: {
                     ChunkRequest cr;
                     cr.decodePacket(msgs.packet);
-
-                    std::cout << cr.requestedChunk.x << ' ' << cr.requestedChunk.y << ' ' << cr.requestedChunk.z << '\n';
-
+                    
                     std::shared_ptr<ServerChunk> chunk = world.getChunk(cr.requestedChunk);
 
                     ChunkResponse cresp;
@@ -177,7 +175,6 @@ void GameServer::_gameThreadFunc() {
             connectedPlayersLock.unlock();
         }
 
-
         tickC ++;
 
         // End of tick
@@ -190,6 +187,8 @@ void GameServer::_gameThreadFunc() {
             std::this_thread::sleep_for(std::chrono::nanoseconds(sleepTime));
         }
     }
+
+    std::cout << "Game thread quit!\n";
 }
 
 GameServer::GameServer() {}
