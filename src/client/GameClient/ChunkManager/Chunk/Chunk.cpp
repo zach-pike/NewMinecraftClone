@@ -6,6 +6,7 @@
 #include "glm.hpp"
 
 #include "GameClient/ChunkManager/ChunkManager.hpp"
+#include "Block/Block.hpp"
 
 #define ChunkIndexFormula(csx, csz, x, y, z) (x + z * csx + y * csx * csz)
 #define ReverseChunkIndexFormula(csx, csz, idx) glm::ivec3( \
@@ -107,7 +108,7 @@ void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
         textureIndexs.push_back(textureIndex);
     };
 
-    auto addBlock = [&](glm::vec3 offset, GLuint textureIndex) {
+    auto addBlock = [&](glm::vec3 offset, GLuint blockID) {
         int worldX = cc.x * CHUNK_X + offset.x;
         int worldY = cc.y * CHUNK_Y + offset.y;
         int worldZ = cc.z * CHUNK_Z + offset.z;
@@ -140,7 +141,7 @@ void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
                 if (chunk->getChunkBlock(BlockCoordinate{ newCheckX, newCheckY, newCheckZ }) != 0) continue;
             }
 
-            addFace((BlockFace)i, offset, textureIndex);
+            addFace((BlockFace)i, offset, blockTextureIDs[blockID][i]);
         }
 
     };
@@ -149,12 +150,8 @@ void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
         glm::ivec3 p = ReverseChunkIndexFormula(CHUNK_X, CHUNK_Z, i);
         std::uint8_t b = getChunkBlock(BlockCoordinate{ p.x, p.y, p.z });
 
-        if (b > 1) {
-            std::cout << "Dirt block!\n";
-        }
-
         if (b != 0)
-            addBlock(p, b - 1);
+            addBlock(p, b);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vertexIndexBuffer);

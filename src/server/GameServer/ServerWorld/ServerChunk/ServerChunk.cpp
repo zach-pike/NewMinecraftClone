@@ -9,12 +9,6 @@
 
 ServerChunk::ServerChunk() {
     blockData.fill(0);
-
-    for (int i=0; i<10; i++) {
-        if (i%2==0) {
-            blockData.at(i) = 1;
-        }
-    }
 }
 
 void ServerChunk::setChunkBlock(int x, int y, int z, std::uint8_t v) {
