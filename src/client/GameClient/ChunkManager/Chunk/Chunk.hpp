@@ -39,7 +39,7 @@ public:
 
     void setBlockData(std::vector<std::uint8_t>& data);
 
-    void drawChunk(ChunkCoordinate cc, ChunkManager& world);
+    bool drawChunk(ChunkCoordinate cc, ChunkManager& world);
     void renderChunk(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm::mat4 MVP);
 
     void setChunkBlock(BlockCoordinate v, std::uint8_t block);

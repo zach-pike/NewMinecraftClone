@@ -185,7 +185,7 @@ void GameClient::_renderThread() {
     double lastMouseX, lastMouseY;
 
     const float mouseSens = .005f;
-    const float moveSpeed = 0.01f;
+    const float moveSpeed = 0.1f;
 
     bool mouseLocked = false;
     bool mouseLockKeyPressed = false;
@@ -197,16 +197,29 @@ void GameClient::_renderThread() {
 
     std::vector<ChunkCoordinate> requestedChunks;
 
+    std::chrono::time_point tp1 = std::chrono::steady_clock::now();
+    std::chrono::time_point tp2 = std::chrono::steady_clock::now();
+
+    ChunkCoordinate oldChunkCoord{ -1, -1, -1 };
+    ChunkCoordinate chunkCoord { 0, 0, 0 };
+
+    bool hasDoneInitialChunkRequests = false;
+
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
+        auto frameBegin = std::chrono::steady_clock::now();
+
+        int64_t dt = (tp2 - tp1).count();
+        
         int chunkX = floorf(playerData.playerPosition.x / CHUNK_X);
         int chunkY = floorf(playerData.playerPosition.y / CHUNK_Y);
         int chunkZ = floorf(playerData.playerPosition.z / CHUNK_Z);
 
-        ChunkCoordinate cc{ chunkX, chunkY, chunkZ };
+        chunkCoord = ChunkCoordinate{ chunkX, chunkY, chunkZ };
 
         // Do network loop
         while(networkClient.messagesAvailable()) {
+
             auto message = networkClient.popMessage();
 
             assert(message->dataLength > 0);
@@ -243,12 +256,27 @@ void GameClient::_renderThread() {
         }
 
         if (networkClient.isConnected()) {
-            bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();
-            if (fc % 50 == 0 && chunkManager->getChunks().count(cc) < 1 && !hasRequestedChunkAlready) {
-                ChunkRequest cr;
-                cr.requestedChunk = cc;
+            // If were in a new chunk then try and load more chunks
+            if (oldChunkCoord != chunkCoord || !hasDoneInitialChunkRequests) {
+                hasDoneInitialChunkRequests = true;
 
-                networkClient.addToOutQueue(cr.convToPacket());
+                for (int x=-2; x<=2; x++) {
+                    for (int y=-2; y<=2; y++) {
+                        for (int z=-2; z<=2; z++) {
+                            ChunkCoordinate cc{ chunkCoord.x + x, chunkCoord.y + y, chunkCoord.z + z };
+
+                            bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();
+                            if (chunkManager->getChunks().count(cc) < 1 && !hasRequestedChunkAlready) {
+                                ChunkRequest cr;
+                                cr.requestedChunk = cc;
+                                networkClient.addToOutQueue(cr.convToPacket());
+                                requestedChunks.push_back(cc);
+                            }
+                        }
+                    }
+                }
+
+
             }
         }
 
@@ -273,8 +301,29 @@ void GameClient::_renderThread() {
             mouseLockKeyPressed = false;
         }
 
-        // Movement keys
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+        if (windowWidth != 0 && windowHeight != 0) {
+            aspectRatio = (float)windowWidth / (float)windowHeight;
+        }
+
         if (mouseLocked) {
+            double mousePosX, mousePosY;
+            glfwGetCursorPos(window, &mousePosX, &mousePosY);
+
+            double mouseDeltaX = mousePosX - lastMouseX;
+            double mouseDeltaY = mousePosY - lastMouseY;
+
+            lastMouseX = mousePosX;
+            lastMouseY = mousePosY;
+
+            playerData.cameraYaw = std::fmod(playerData.cameraYaw + mouseDeltaX * mouseSens, M_PI*2);
+
+            // Lock the camera to almost all the way down and almost all the way up
+            playerData.cameraPitch = std::min(1.5f*M_PI - .01, std::max((double)M_PI_2 + .01, playerData.cameraPitch + mouseDeltaY * mouseSens));
+
+            // Movement keys
             glm::vec3 movement = glm::vec3(0, 0, 0);
             auto looking = getLookingVector(playerData.cameraPitch, playerData.cameraYaw);
 
@@ -302,40 +351,17 @@ void GameClient::_renderThread() {
                 movement -= glm::vec3(0, 1, 0);
             }
 
-            if (glm::length(movement) > 0.5f) {
+            if (glm::length(movement) > 0.01f) {
                 playerData.playerPosition += glm::normalize(movement) * moveSpeed;
             }
         }
 
-        int windowWidth, windowHeight;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
-        if (windowWidth != 0 && windowHeight != 0) {
-            aspectRatio = (float)windowWidth / (float)windowHeight;
-        }
-
-        if (mouseLocked) {
-            double mousePosX, mousePosY;
-            glfwGetCursorPos(window, &mousePosX, &mousePosY);
-
-            double mouseDeltaX = mousePosX - lastMouseX;
-            double mouseDeltaY = mousePosY - lastMouseY;
-
-            lastMouseX = mousePosX;
-            lastMouseY = mousePosY;
-
-            playerData.cameraYaw = std::fmod(playerData.cameraYaw + mouseDeltaX * mouseSens, M_PI*2);
-
-            // Lock the camera to almost all the way down and almost all the way up
-            playerData.cameraPitch = std::min(1.5f*M_PI - .01, std::max((double)M_PI_2 + .01, playerData.cameraPitch + mouseDeltaY * mouseSens));
-        }
-
         glm::mat4 view = glm::lookAt(
-                                        playerData.playerPosition + glm::vec3(0, 2, 0), 
-                                        playerData.playerPosition + glm::vec3(0, 2, 0) + getLookingVector(playerData.cameraPitch, playerData.cameraYaw),
-                                        glm::vec3(0, 1, 0)
-                                    );
-        glm::mat4 projection = glm::perspective(glm::radians(70.f), aspectRatio, 0.01f, 100.f);
+            playerData.playerPosition + glm::vec3(0, 2, 0), 
+            playerData.playerPosition + glm::vec3(0, 2, 0) + getLookingVector(playerData.cameraPitch, playerData.cameraYaw),
+            glm::vec3(0, 1, 0)
+        );
+        glm::mat4 projection = glm::perspective(glm::radians(70.f), aspectRatio, 0.01f, 10000.f);
 
         glm::mat4 viewProjection = projection * view;
 
@@ -379,19 +405,28 @@ void GameClient::_renderThread() {
                 ImGui::Text("Connected!");
             }
 
-            if (ImGui::Button("Send Request")) {
-                ChunkCoordinate p{ 0, 0, 0 };
-                ChunkRequest cr;
-                cr.requestedChunk = p;
-
-                networkClient.addToOutQueue(cr.convToPacket()); 
-            }
         ImGui::End();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
+
+        glViewport(0, 0, windowWidth, windowHeight);
+
+        oldChunkCoord = chunkCoord;
+
+        auto frameEnd = std::chrono::steady_clock::now();
+        std::int64_t diff = (frameEnd - frameBegin).count();
+
+        tp1 = tp2;
+        tp2 = frameEnd;
+
+        // If frame took less than 16ms to complete than sleep for rest of time
+        if (diff < (1e6 * 14)) {
+            std::int64_t sleepTime = (1e6 * 14) - diff;
+            std::this_thread::sleep_for(std::chrono::nanoseconds(sleepTime));
+        }
 
         fc++;
     }

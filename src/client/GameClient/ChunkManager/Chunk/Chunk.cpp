@@ -73,8 +73,8 @@ void Chunk::setBlockData(std::vector<std::uint8_t>& data) {
     meshUpToDate = false;
 }
 
-void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
-    if (meshUpToDate) return;
+bool Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
+    if (meshUpToDate) return false;
 
     if (!buffersReady) {
         createBuffers();
@@ -165,6 +165,8 @@ void Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
 
     meshUpToDate = true;
     lastVertexCount = vertexIndex.size();
+
+    return true;
 }
 
 void Chunk::renderChunk(std::shared_ptr<ChunkRenderInfo>& renderInfo, glm::mat4 MVP) {

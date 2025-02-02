@@ -21,7 +21,10 @@ void ChunkManager::unloadChunksGracefully() {
 }
 
 void ChunkManager::tick() {
+    int chunksDrawn = 0;
     for (auto& kv : chunks) {
-        kv.second->drawChunk(kv.first, *this);
+        if (chunksDrawn >= 1) break;
+
+        if (kv.second->drawChunk(kv.first, *this)) chunksDrawn++;
     }
 }
