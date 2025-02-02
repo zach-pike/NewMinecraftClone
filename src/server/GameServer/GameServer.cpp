@@ -168,7 +168,7 @@ void GameServer::_gameThreadFunc() {
             for (auto& player : connectedPlayers) {
                 if (!player.second.has_value()) continue;
 
-                std::uint64_t id = *(std::uint64_t*)(player.first->address.host.u.Byte) + player.first->address.port;
+                std::uint64_t id = player.first->address.port;
 
                 UpdatePlayerState ups;
                 ups.userToUpdate = id;
