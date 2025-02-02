@@ -156,7 +156,7 @@ void GameServer::_gameThreadFunc() {
         inQueue.clear();
         inQueueLock.unlock();
 
-        if (tickC % 5 == 0) {
+        if (tickC % 2 == 0) {
             // Send out player position data
             connectedPlayersLock.lock();
             for (auto& player : connectedPlayers) {

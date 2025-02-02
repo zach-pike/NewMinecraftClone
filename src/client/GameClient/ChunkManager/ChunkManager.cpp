@@ -23,7 +23,7 @@ void ChunkManager::unloadChunksGracefully() {
 void ChunkManager::tick() {
     int chunksDrawn = 0;
     for (auto& kv : chunks) {
-        if (chunksDrawn >= 1) break;
+        if (chunksDrawn >= 10) break;
 
         if (kv.second->drawChunk(kv.first, *this)) chunksDrawn++;
     }

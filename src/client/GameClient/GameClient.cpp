@@ -159,7 +159,7 @@ void GameClient::_renderThread() {
         return (float)rand() / (float)RAND_MAX;
     };
 
-    playerData.playerPosition = glm::vec3(crand()*10-5, 0, crand()*10-5);
+    playerData.playerPosition = glm::vec3(crand()*10-5, 60, crand()*10-5);
 
     playerData.cameraPitch = 0;
     playerData.cameraYaw = 0;
@@ -185,7 +185,7 @@ void GameClient::_renderThread() {
     double lastMouseX, lastMouseY;
 
     const float mouseSens = .005f;
-    const float moveSpeed = 0.1f;
+    const float moveSpeed = 0.18f;
 
     bool mouseLocked = false;
     bool mouseLockKeyPressed = false;
@@ -246,11 +246,25 @@ void GameClient::_renderThread() {
 
                     chunkManager->getChunks().insert({ cr.requestedChunk, chunk });
 
+                    for (int x=-10; x<=10; x++) {
+                        for (int y=-4; y<=4; y++) {
+                            for (int z=-10; z<=10; z++) {
+                                ChunkCoordinate refChunkCoord{ cr.requestedChunk.x + x,
+                                                    cr.requestedChunk.y + y,
+                                                    cr.requestedChunk.z + z };
+
+                                if (chunkManager->getChunks().count(refChunkCoord) > 0) {
+                                    chunkManager->getChunks().at(refChunkCoord)->markForRedraw();
+                                }
+                            }
+                        }
+                    }
+
                 } break;
             }
         }
 
-        if (fc % 20 == 0) {
+        if (fc % 5 == 0) {
             ENetPacket* p = playerData.convToPacket();
             networkClient.addToOutQueue(p);
         }
@@ -260,9 +274,9 @@ void GameClient::_renderThread() {
             if (oldChunkCoord != chunkCoord || !hasDoneInitialChunkRequests) {
                 hasDoneInitialChunkRequests = true;
 
-                for (int x=-2; x<=2; x++) {
+                for (int x=-4; x<=4; x++) {
                     for (int y=-2; y<=2; y++) {
-                        for (int z=-2; z<=2; z++) {
+                        for (int z=-4; z<=4; z++) {
                             ChunkCoordinate cc{ chunkCoord.x + x, chunkCoord.y + y, chunkCoord.z + z };
 
                             bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();

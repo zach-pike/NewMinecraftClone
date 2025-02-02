@@ -46,4 +46,6 @@ public:
     std::uint8_t getChunkBlock(BlockCoordinate v) const;
 
     void tick();
+
+    void markForRedraw();
 };

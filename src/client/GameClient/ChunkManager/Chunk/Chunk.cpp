@@ -113,39 +113,44 @@ bool Chunk::drawChunk(ChunkCoordinate cc, ChunkManager& manager) {
         int worldY = cc.y * CHUNK_Y + offset.y;
         int worldZ = cc.z * CHUNK_Z + offset.z;
 
-        for (int i=0; i<6; i++) {
+        for (int i = 0; i < 6; i++) {
             CullingOffset off = cullingOffset[i];
 
             int checkX = offset.x + off.x;
             int checkY = offset.y + off.y;
             int checkZ = offset.z + off.z;
 
-            if ((checkX >= 0 && checkX < CHUNK_X) &&
-                (checkY >= 0 && checkY < CHUNK_Y) &&
-                (checkZ >= 0 && checkZ < CHUNK_Z))
-            {
-                // Block to check is in current chunk
+            bool isInsideChunk = (checkX >= 0 && checkX < CHUNK_X) &&
+                                (checkY >= 0 && checkY < CHUNK_Y) &&
+                                (checkZ >= 0 && checkZ < CHUNK_Z);
+
+            if (isInsideChunk) {
+                // Block to check is in the current chunk
                 if (getChunkBlock(BlockCoordinate{ checkX, checkY, checkZ }) != 0) continue;
+            } else {
+                // Block is outside the current chunk, check the neighboring chunk
+                int chunkOffsetX = (checkX < 0) ? -1 : (checkX >= CHUNK_X ? 1 : 0);
+                int chunkOffsetY = (checkY < 0) ? -1 : (checkY >= CHUNK_Y ? 1 : 0);
+                int chunkOffsetZ = (checkZ < 0) ? -1 : (checkZ >= CHUNK_Z ? 1 : 0);
+
+                auto checkingChunk = ChunkCoordinate{ cc.x + chunkOffsetX, cc.y + chunkOffsetY, cc.z + chunkOffsetZ };
+                if (manager.getChunks().count(checkingChunk)) {
+                    const auto& chunk = manager.getChunks().at(checkingChunk);
+
+                    // Adjust coordinates to be relative to the neighboring chunk
+                    int localX = mod(checkX, CHUNK_X);
+                    int localY = mod(checkY, CHUNK_Y);
+                    int localZ = mod(checkZ, CHUNK_Z);
+
+                    if (chunk->getChunkBlock(BlockCoordinate{ localX, localY, localZ }) != 0) continue;
+                }
             }
 
-            // Now for outside check
-            int newCheckX = mod(checkX, CHUNK_X);
-            int newCheckY = mod(checkY, CHUNK_Y);
-            int newCheckZ = mod(checkZ, CHUNK_Z);
-
-            // Now get neighboring chunk (if it exists)
-            auto checkingChunk = ChunkCoordinate{ cc.x + off.x, cc.y + off.y, cc.z + off.z };
-            if (manager.getChunks().count(checkingChunk)) {
-                const auto& chunk = manager.getChunks().at(checkingChunk);
-                // Chunk exists, do check
-                if (chunk->getChunkBlock(BlockCoordinate{ newCheckX, newCheckY, newCheckZ }) != 0) continue;
-            }
-
+            // If we reach here, the neighboring block is air, so add the face
             addFace((BlockFace)i, offset, blockTextureIDs[blockID][i]);
         }
-
     };
-    
+        
     for (int i=0; i<(CHUNK_X * CHUNK_Y * CHUNK_Z); i++) {
         glm::ivec3 p = ReverseChunkIndexFormula(CHUNK_X, CHUNK_Z, i);
         std::uint8_t b = getChunkBlock(BlockCoordinate{ p.x, p.y, p.z });
@@ -211,4 +216,8 @@ std::uint8_t Chunk::getChunkBlock(BlockCoordinate b) const {
 
 void Chunk::tick() {
 
+}
+
+void Chunk::markForRedraw() {
+    meshUpToDate = false;
 }
