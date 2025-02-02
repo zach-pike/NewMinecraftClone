@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "Common/Packets/PlayerState/PlayerState.hpp"
+#include "Common/Logger/Logger.hpp"
 
 #include "ServerWorld/ServerWorld.hpp"
 
@@ -43,6 +44,8 @@ private:
     bool messagesAvailable();
     IdentifiedPacket popMessage();
 
+    Logger logger;
+
     ServerWorld world;
 public:
     GameServer();
@@ -51,6 +54,5 @@ public:
     void startServer();
     void stopServer();
     
-
     void printPlayerList();
 };

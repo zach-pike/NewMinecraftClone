@@ -8,6 +8,8 @@
 #include <thread>
 #include <deque>
 
+#include "Common/Logger/Logger.hpp"
+
 class GameNetworkClient {
 private:
     std::atomic_bool networkThreadRunning = false;
@@ -20,6 +22,8 @@ private:
 
     std::mutex outQueueLock;
     std::deque<ENetPacket*> outQueue;
+
+    Logger logger;
 public:
     GameNetworkClient();
     ~GameNetworkClient();

@@ -17,6 +17,10 @@
 #define MAX_CLIENTS 32
 
 void GameServer::_networkThreadFunc() {
+    Logger networkThreadLogger("NetworkThread", Logger::Color::PURPLE);
+
+    networkThreadLogger.log("Network Thread Started!");
+
     enet_initialize();
 
     ENetAddress address = {0};
@@ -28,10 +32,11 @@ void GameServer::_networkThreadFunc() {
     ENetHost* server = enet_host_create(&address, MAX_CLIENTS, 1, 0, 0);
 
     if (server == nullptr) {
-        throw std::runtime_error("Failed to create server!");
+        networkThreadLogger.error("Failed to create server!");
+        throw std::runtime_error("create server!");
     }
 
-    std::cout << "Server running!\n";
+    networkThreadLogger.log("Network server created!");
 
     while (networkThreadRunning) {
         ENetEvent event;
@@ -66,7 +71,7 @@ void GameServer::_networkThreadFunc() {
 
         switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT: {
-                std::cout << "A new client connected!\n";
+                networkThreadLogger.log("A new client connected!");
 
                 connectedPlayersLock.lock();
                 connectedPlayers.insert({ event.peer, std::nullopt });
@@ -86,14 +91,14 @@ void GameServer::_networkThreadFunc() {
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT: {
-                std::cout << "User disconnected.\n";
+                networkThreadLogger.log("User disconnected.");
                 connectedPlayersLock.lock();
                 connectedPlayers.erase(event.peer);
                 connectedPlayersLock.unlock();
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT: {
-                std::cout << "User timed out.\n";
+                networkThreadLogger.log("User timed out.");
                 connectedPlayersLock.lock();
                 connectedPlayers.erase(event.peer);
                 connectedPlayersLock.unlock();
@@ -103,15 +108,16 @@ void GameServer::_networkThreadFunc() {
         }
     }
 
-    std::cout << "Network Server closed!\n";
 
     enet_host_destroy(server);
     enet_deinitialize();
+    networkThreadLogger.log("Network Thread stopped!");
 }
 
 void GameServer::_gameThreadFunc() {
-    // Generate world
+    Logger gameThreadLogger("GameThread", Logger::Color::CYAN);
 
+    gameThreadLogger.log("Game Thread Started!");
 
     int tickC = 0;
 
@@ -188,26 +194,32 @@ void GameServer::_gameThreadFunc() {
         }
     }
 
-    std::cout << "Game thread quit!\n";
+    gameThreadLogger.log("Game Thread stopped!");
 }
 
-GameServer::GameServer() {}
+GameServer::GameServer():
+    logger("GameServer", Logger::Color::GREEN) {}
+
 GameServer::~GameServer() {}
 
 void GameServer::startServer() {
+    logger.log("Starting Server...");
     networkThreadRunning = true;
     networkThread = std::thread(std::bind(&GameServer::_networkThreadFunc, this));
 
     gameThreadRunning = true;
     gameThread = std::thread(std::bind(&GameServer::_gameThreadFunc, this));
+    logger.log("Server started!");
 }
 
 void GameServer::stopServer() {
+    logger.log("Stopping Server...");
     networkThreadRunning = false;
     networkThread.join();
 
     gameThreadRunning = false;
     gameThread.join();
+    logger.log("Server stopped!");
 }
 
 void GameServer::addToOutQueue(ENetPeer* peer, ENetPacket* p) {

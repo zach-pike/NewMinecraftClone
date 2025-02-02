@@ -5,13 +5,18 @@
 #include <functional>
 
 void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port) {
+    Logger networkThreadLogger("NetworkThread", Logger::Color::DARK_CYAN);
+
+    networkThreadLogger.log("Network Thread Started!");
+
     enet_initialize();
     
     // Create client
     ENetHost* client = enet_host_create(NULL, 1, 1, 0, 0);
     
     if (client == NULL) {
-        throw std::runtime_error("Failed to create client!");
+        networkThreadLogger.error("Failed to create client!");
+        throw std::runtime_error("create client!");
     }
 
     // Set address and port
@@ -21,8 +26,18 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
 
     ENetPeer* peer = enet_host_connect(client, &address, 2, 0);
     if (peer == NULL) {
-        throw std::runtime_error("Failed to connect to peer!");
+        networkThreadLogger.warn("Failed to connect to peer!");
+
+        enet_host_destroy(client);
+        enet_deinitialize();
+
+        networkThreadRunning = false;
+
+        networkThreadLogger.log("Network Thread Stopped!");
+        return;
     }
+
+    networkThreadLogger.log("ENet Peer Created!");
 
     ENetEvent event;
     if (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT) {
@@ -38,18 +53,20 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
         enet_host_destroy(client);
         enet_deinitialize();
 
-        std::cout << "Connection to peer failed.\n";
+        networkThreadLogger.warn("Failed to connect to peer!");
+        networkThreadLogger.log("Network Thread Stopped!");
 
         return;
     }
 
+    networkThreadLogger.log("Connected!");
     while (networkThreadRunning) {
         int rc = enet_host_service(client, &event, 0);
 
         if (rc < 0) {
             // Disconnect user
             // Error in connection
-            std::cout << "Error in connection!\n";
+            networkThreadLogger.error("Error in connection!");
 
             networkThreadRunning = false;
             workerConnected = false;
@@ -57,6 +74,8 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
             enet_peer_reset(peer);
             enet_host_destroy(client);
             enet_deinitialize();
+
+            networkThreadLogger.log("Network Thread Stopped!");
 
             return;
         }
@@ -86,7 +105,7 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT: {
-                std::cout << "Disconnected!";
+                networkThreadLogger.log("Disconnected!");
 
                 networkThreadRunning = false;
                 workerConnected = false;
@@ -94,12 +113,14 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
                 enet_peer_reset(peer);
                 enet_host_destroy(client);
                 enet_deinitialize();
+
+                networkThreadLogger.log("Network Thread Stopped!");
 
                 return;
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT: {
-                std::cout << "Timed out!";
+                networkThreadLogger.log("Timed out!");
 
                 networkThreadRunning = false;
                 workerConnected = false;
@@ -107,6 +128,8 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
                 enet_peer_reset(peer);
                 enet_host_destroy(client);
                 enet_deinitialize();
+
+                networkThreadLogger.log("Network Thread Stopped!");
 
                 return;
             } break;
@@ -126,7 +149,7 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
                 enet_packet_destroy(event.packet);
             } break;
             case ENET_EVENT_TYPE_DISCONNECT: {
-                std::cout << "Graceful disconnection succeeded.\n";
+                networkThreadLogger.log("Graceful disconnection succeeded.");
                 disconnected = true;
             } break;
         }
@@ -134,29 +157,41 @@ void GameNetworkClient::_networkThreadFunc(std::string host, std::uint16_t port)
 
     // Drop connection, since disconnection didn't successed
     if (!disconnected) {
-        std::cout << "Ungracefully disconnected unresponsive server\n";
+        networkThreadLogger.warn("Ungracefully disconnected unresponsive server");
         enet_peer_reset(peer);
     }
 
     workerConnected = false;
     enet_host_destroy(client);
     enet_deinitialize();
+
+    networkThreadLogger.log("Network Thread Stopped!");
 }
 
-GameNetworkClient::GameNetworkClient() {}
-GameNetworkClient::~GameNetworkClient() {}
+GameNetworkClient::GameNetworkClient():
+    logger("GameNetworkClient", Logger::Color::DARK_BLUE) {}
+
+GameNetworkClient::~GameNetworkClient() {
+    disconnect();
+    
+    if (networkThread.joinable())
+        networkThread.join();
+}
 
 void GameNetworkClient::connectToHost(std::string host, std::uint16_t port) {
     if (networkThread.joinable())
         networkThread.join();
+
+    logger.log("Connecting to " + host + ":" + std::to_string(port));
 
     networkThreadRunning = true;
     networkThread = std::thread(std::bind(&GameNetworkClient::_networkThreadFunc, this, host, port));
 }
 
 void GameNetworkClient::disconnect() {
+    logger.log("Disconnecting...");
     networkThreadRunning = false;
-    networkThread.join();
+    // networkThread.join();
 }
 
 bool GameNetworkClient::isConnected() const {

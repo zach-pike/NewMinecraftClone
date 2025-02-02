@@ -413,10 +413,16 @@ void GameClient::_renderThread() {
             ImGui::InputText("Host IP", hostIP, 20);
             ImGui::InputInt("Host Port", &port);
 
-            if (ImGui::Button("Connect!") && !networkClient.isConnected()) {
-                networkClient.connectToHost(std::string(hostIP), port);
-            } else if (networkClient.isConnected()) {
-                ImGui::Text("Connected!");
+            if (networkClient.isConnected()) {
+                if (ImGui::Button("Disconnect")) {
+                    networkClient.disconnect();
+                }
+            } else {
+                if (ImGui::Button("Connect")) {
+                    networkClient.connectToHost(std::string(hostIP), port);
+                    players.clear();
+                    hasDoneInitialChunkRequests = false;
+                }
             }
 
         ImGui::End();
