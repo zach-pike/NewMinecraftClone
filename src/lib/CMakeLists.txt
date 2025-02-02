@@ -14,6 +14,8 @@ set(COMMON_SOURCE
     Common/Packets/UpdatePlayerState/UpdatePlayerState.cpp
     Common/Packets/ChunkRequest/ChunkRequest.cpp
     Common/Packets/ChunkResponse/ChunkResponse.cpp
+
+    Common/Logger/Logger.cpp
 )
 
 add_library(Common STATIC ${COMMON_SOURCE})
