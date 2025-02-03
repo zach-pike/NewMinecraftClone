@@ -20,7 +20,12 @@ set(
 link_directories("${CMAKE_SOURCE_DIR}/lib/GLFW") 
 
 add_executable(Client ${CLIENT_CXX_FILES})
-target_link_libraries(Client PRIVATE ENet glfw3 glad IMGui Common STBImage)
+
+if (UNIX)
+    target_link_libraries(Client PRIVATE ENet glfw3 glad IMGui Common STBImage pthread)
+else()
+    target_link_libraries(Client PRIVATE ENet glfw3 glad IMGui Common STBImage)
+endif (UNIX)
 
 target_include_directories(Client PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 target_include_directories(Client PRIVATE ${CMAKE_SOURCE_DIR}/lib/glm/glm)

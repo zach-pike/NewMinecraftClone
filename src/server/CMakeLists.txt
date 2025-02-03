@@ -10,6 +10,11 @@ set(
 )
 
 add_executable(Server ${SERVER_CXX_FILES})
-target_link_libraries(Server ENet Common)
+
+if (UNIX)
+    target_link_libraries(Server PRIVATE ENet Common pthread)
+else()
+    target_link_libraries(Server PRIVATE ENet Common)
+endif (UNIX)
 
 target_include_directories(Server PRIVATE ${CMAKE_SOURCE_DIR}/lib)

@@ -6,7 +6,6 @@ if(WIN32)
     target_link_libraries(ENet ws2_32 winmm)
 endif()
 
-
 target_include_directories(ENet PRIVATE ${CMAKE_SOURCE_DIR}/lib)
 
 add_library(STBImage STATIC stb_image_impl.cpp)
