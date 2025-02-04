@@ -3,8 +3,6 @@
 #include "GameClient/GameClient.hpp"
 
 int main(int argc, char** argv) {
-    std::cout << (-1 / 6) << '\n';
-
     GameClient gc;
 
     gc.startGame();

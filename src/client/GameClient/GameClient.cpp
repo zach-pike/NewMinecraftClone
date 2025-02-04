@@ -274,9 +274,9 @@ void GameClient::_renderThread() {
             if (oldChunkCoord != chunkCoord || !hasDoneInitialChunkRequests) {
                 hasDoneInitialChunkRequests = true;
 
-                for (int x=-10; x<=10; x++) {
-                    for (int y=-4; y<=4; y++) {
-                        for (int z=-10; z<=10; z++) {
+                for (int x=-2; x<=2; x++) {
+                    for (int y=-2; y<=2; y++) {
+                        for (int z=-2; z<=2; z++) {
                             ChunkCoordinate cc{ chunkCoord.x + x, chunkCoord.y + y, chunkCoord.z + z };
 
                             bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();

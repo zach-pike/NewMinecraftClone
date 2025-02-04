@@ -1,6 +1,7 @@
 #include "ServerWorld.hpp"
 
 #include <iostream>
+#include <utility>
 
 template <typename T>
 inline
@@ -17,10 +18,33 @@ float scalar(std::mt19937& rng) {
     return (float)rng() / rng.max();
 }
 
-void ServerWorld::generateWorld() {}
+void ServerWorld::addUnplacedBlock(ChunkCoordinate c, BlockCoordinate b, std::uint8_t bt) {
+    unplacedBlocks[c].push_back(std::pair<BlockCoordinate, std::uint8_t>(b, bt));
+}
+
+void ServerWorld::fillUnplacedBlocks(ChunkCoordinate location, std::shared_ptr<ServerChunk> chunk) {
+    if (unplacedBlocks.count(location) < 1) return;
+    
+    auto& blocks = unplacedBlocks[location];
+
+    for (auto& a : blocks) {
+        chunk->setChunkBlock(a.first.x, a.first.y, a.first.z, a.second);
+    }
+
+    // Instead of erasing immediately, keep it until we're sure all are placed
+    unplacedBlocks.erase(location);
+}
 
 void ServerWorld::generateChunk(ChunkCoordinate c) {
     auto chunk = std::make_shared<ServerChunk>();
+
+    fillUnplacedBlocks(c, chunk);
+
+    // Save on processing for chunks we know wont have terrain in them
+    if (c.y*CHUNK_Y >= 100 || c.y*CHUNK_Y < 0) {
+        worldChunks.insert({ c, chunk });
+        return;
+    }
 
     std::mt19937 treeRng;
 
@@ -50,7 +74,7 @@ void ServerWorld::generateChunk(ChunkCoordinate c) {
             }
 
             // Generate tree if we should
-            if (tree > 0.999) {
+            if (x == 0 && z == 0) {
                 int trunkBaseY = noiseHeight + 1;
                 int trunkTopY = trunkBaseY + 2; // Trunk is 3 blocks tall
 
@@ -68,14 +92,40 @@ void ServerWorld::generateChunk(ChunkCoordinate c) {
                     for (int lz = -1; lz <= 1; lz++) {
                         for (int ly = 0; ly <= 2; ly++) {
                             int localX = x + lx;
-                            int localY = (leavesBaseY + ly) - (c.y * CHUNK_Y);
+                            int leafY = (leavesBaseY + ly);
                             int localZ = z + lz;
+
+                            // Clamp leaf Y value within the chunk height
+                            if (leafY < c.y * CHUNK_Y || leafY >= (c.y + 1) * CHUNK_Y) {
+                                continue; // Skip leaves above the chunk
+                            }
+
+                            int localY = leafY - (c.y * CHUNK_Y);
 
                             // Check if the block is within the current chunk
                             if (localX >= 0 && localX < CHUNK_X &&
                                 localY >= 0 && localY < CHUNK_Y &&
                                 localZ >= 0 && localZ < CHUNK_Z) {
                                 chunk->setChunkBlock(localX, localY, localZ, 4); // Leaves
+                            } else {
+                                int chunkOffsetX = (localX < 0) ? -1 : (localX >= CHUNK_X ? 1 : 0);
+                                int chunkOffsetY = (localY < 0) ? -1 : (localY >= CHUNK_Y ? 1 : 0);
+                                int chunkOffsetZ = (localZ < 0) ? -1 : (localZ >= CHUNK_Z ? 1 : 0);
+
+                                int cLocalX = mod(localX, CHUNK_X);
+                                int cLocalY = mod(localY, CHUNK_Y);
+                                int cLocalZ = mod(localZ, CHUNK_Z);
+
+                                ChunkCoordinate chunkCoord{ c.x + chunkOffsetX, c.y + chunkOffsetY, c.z + chunkOffsetZ };
+                                BlockCoordinate blockCoord{ cLocalX, cLocalY, cLocalZ };
+
+                                //  Does the chunk exist?
+                                if (worldChunks.count(chunkCoord)) {
+                                    auto c = worldChunks.at(chunkCoord);
+                                    c->setChunkBlock(cLocalX, cLocalY, cLocalZ, 4);
+                                } else {
+                                    addUnplacedBlock(chunkCoord, blockCoord, 4);
+                                }
                             }
                         }
                     }

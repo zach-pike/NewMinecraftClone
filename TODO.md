@@ -1,0 +1,6 @@
+ - [ ] Add AABB collision
+ - [x] Add blocks in unloaded chunks systsem
+   - [ ] Add chunk update timestamping system
+   - Tree generation works, but when updating chunks that already exist the new data is not sent to client
+ - [ ] Limit number of chunk request packets being sent
+ - [ ] Text rendering api?
