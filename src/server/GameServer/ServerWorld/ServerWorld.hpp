@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <random>
 
 #include "Common/Types.hpp"
 #include "ServerChunk/ServerChunk.hpp"

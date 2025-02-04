@@ -246,9 +246,9 @@ void GameClient::_renderThread() {
 
                     chunkManager->getChunks().insert({ cr.requestedChunk, chunk });
 
-                    for (int x=-10; x<=10; x++) {
-                        for (int y=-4; y<=4; y++) {
-                            for (int z=-10; z<=10; z++) {
+                    for (int x=-1; x<=1; x++) {
+                        for (int y=-1; y<=1; y++) {
+                            for (int z=-1; z<=1; z++) {
                                 ChunkCoordinate refChunkCoord{ cr.requestedChunk.x + x,
                                                     cr.requestedChunk.y + y,
                                                     cr.requestedChunk.z + z };
@@ -274,9 +274,9 @@ void GameClient::_renderThread() {
             if (oldChunkCoord != chunkCoord || !hasDoneInitialChunkRequests) {
                 hasDoneInitialChunkRequests = true;
 
-                for (int x=-4; x<=4; x++) {
-                    for (int y=-2; y<=2; y++) {
-                        for (int z=-4; z<=4; z++) {
+                for (int x=-10; x<=10; x++) {
+                    for (int y=-4; y<=4; y++) {
+                        for (int z=-10; z<=10; z++) {
                             ChunkCoordinate cc{ chunkCoord.x + x, chunkCoord.y + y, chunkCoord.z + z };
 
                             bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();

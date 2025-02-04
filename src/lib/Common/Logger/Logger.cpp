@@ -30,6 +30,10 @@ void Logger::log(std::string msg) {
     printf("[INFO] %s\n", msg.c_str());
 
     coutLock.unlock();
+
+    #ifdef _WIN32
+    SetConsoleTextAttribute(hConsole, static_cast<WORD>(Color::DARK_WHITE));
+    #endif
 }
 
 void Logger::warn(std::string msg) {
@@ -52,6 +56,10 @@ void Logger::warn(std::string msg) {
     printf("[WARN] %s\n", msg.c_str());
 
     coutLock.unlock();
+
+    #ifdef _WIN32
+    SetConsoleTextAttribute(hConsole, static_cast<WORD>(Color::DARK_WHITE));
+    #endif
 }
 
 void Logger::error(std::string msg) {
@@ -74,4 +82,8 @@ void Logger::error(std::string msg) {
     printf("[ERROR] %s\n", msg.c_str());
 
     coutLock.unlock();
+
+    #ifdef _WIN32
+    SetConsoleTextAttribute(hConsole, static_cast<WORD>(Color::DARK_WHITE));
+    #endif
 }

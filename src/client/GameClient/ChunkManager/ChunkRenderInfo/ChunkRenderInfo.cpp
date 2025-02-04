@@ -23,12 +23,19 @@ void ChunkRenderInfo::loadTextures() {
     glGenTextures(1, &terrainTexture);
     glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexture);
 
-    const int numberTextures = 3;
+    const int numberTextures = 6;
     int sizeX = 16;
     int sizeY = 16;
 
     glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, sizeX, sizeY, numberTextures);
-    const char* images[numberTextures] = { "resources\\dirt.png", "resources\\grass_side.png", "resources\\grass_top.png" };
+    const char* images[numberTextures] = { 
+        "resources\\dirt.png", // 0
+        "resources\\grass_side.png", // 1
+        "resources\\grass_top.png", // 2
+        "resources\\log_side.png", // 3
+        "resources\\log_end.png", // 4
+        "resources\\leaf.png" // 5
+    };
 
     std::vector<std::uint8_t> imgdata;
     for (int i=0; i<numberTextures; i++) {
