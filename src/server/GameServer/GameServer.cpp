@@ -14,7 +14,7 @@
 
 #define MAX_CLIENTS 32
 
-#define SERVER_RENDER_DISTANCE 4
+#define SERVER_RENDER_DISTANCE 8
 
 void GameServer::_networkThreadFunc() {
     Logger networkThreadLogger("NetworkThread", Logger::Color::PURPLE);
@@ -208,7 +208,7 @@ void GameServer::_gameThreadFunc() {
             // Now remove entry from playerLoadedChunks
             playerLoadedChunks.erase(playerID);
         }
-
+        
         disconnectingPlayers.clear();
         disconnectingPlayersLock.unlock();
 
@@ -246,6 +246,31 @@ void GameServer::_gameThreadFunc() {
         inQueue.clear();
         inQueueLock.unlock();
 
+        // Update dirty chunks
+        auto& dirtyChunks = world.getDirtyChunks();
+
+        for (auto& chunkCoord : dirtyChunks) {
+            if (chunkSubscribers.count(chunkCoord)) {
+                auto chunk = world.getChunk(chunkCoord);
+                auto& subscribers = chunkSubscribers[chunkCoord];
+
+                ChunkData cd;
+                cd.chunkCoord = chunkCoord;
+                cd.blockData = std::move(chunk->getBlockData());
+
+                for (const auto& playerID : subscribers) {
+                    playerIDToPlayerMapLock.lock();
+                    auto player = playerIDToPlayerMap.at(playerID);
+                    playerIDToPlayerMapLock.unlock();
+
+                    addToOutQueue(player->getPeer(), cd.convToPacket());
+                }
+            }
+        }
+
+        dirtyChunks.clear();
+
+        // Dirty chunks are updated
 
         if (tickC % 2 == 0) {
             // Send out player position data

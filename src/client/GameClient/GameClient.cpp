@@ -236,7 +236,7 @@ void GameClient::_renderThread() {
                     auto chunk = std::make_shared<Chunk>();
                     chunk->setBlockData(cr.blockData);
 
-                    chunkManager->getChunks().insert({ cr.chunkCoord, chunk });
+                    chunkManager->getChunks()[cr.chunkCoord] = chunk;
 
                     for (int x=-1; x<=1; x++) {
                         for (int y=-1; y<=1; y++) {

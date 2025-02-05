@@ -74,7 +74,7 @@ void ServerWorld::generateChunk(ChunkCoordinate c) {
             }
 
             // Generate tree if we should
-            if (x == 0 && z == 0) {
+            if (tree > .995) {
                 int trunkBaseY = noiseHeight + 1;
                 int trunkTopY = trunkBaseY + 2; // Trunk is 3 blocks tall
 
@@ -123,6 +123,7 @@ void ServerWorld::generateChunk(ChunkCoordinate c) {
                                 if (worldChunks.count(chunkCoord)) {
                                     auto c = worldChunks.at(chunkCoord);
                                     c->setChunkBlock(cLocalX, cLocalY, cLocalZ, 4);
+                                    dirtyChunks.insert(chunkCoord);
                                 } else {
                                     addUnplacedBlock(chunkCoord, blockCoord, 4);
                                 }
@@ -143,4 +144,8 @@ std::shared_ptr<ServerChunk> ServerWorld::getChunk(ChunkCoordinate c) {
     }
 
     return worldChunks.at(c);
+}
+
+std::set<ChunkCoordinate>& ServerWorld::getDirtyChunks() {
+    return dirtyChunks;
 }

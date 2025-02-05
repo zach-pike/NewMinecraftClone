@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 
 #include "Common/Types.hpp"
 #include "ServerChunk/ServerChunk.hpp"
@@ -20,6 +21,7 @@ private:
     void addUnplacedBlock(ChunkCoordinate c, BlockCoordinate b, std::uint8_t bt);
     void fillUnplacedBlocks(ChunkCoordinate location, std::shared_ptr<ServerChunk> chunk);
 
+    std::set<ChunkCoordinate> dirtyChunks;
 public:
     ServerWorld() = default;
     ~ServerWorld() = default;
@@ -28,4 +30,6 @@ public:
 
     void generateChunk(ChunkCoordinate c);
     std::shared_ptr<ServerChunk> getChunk(ChunkCoordinate c);
+
+    std::set<ChunkCoordinate>& getDirtyChunks();
 };
