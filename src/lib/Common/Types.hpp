@@ -27,3 +27,6 @@ enum class BlockFace : std::uint8_t {
     NegativeZ = 4,
     PositiveZ = 5,
 };
+
+
+using PlayerUUID = std::uint64_t;

@@ -5,10 +5,11 @@
 
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 #include "Common/Serialize/Serializable.hpp"
+#include "Common/Types.hpp"
 
 class UpdatePlayerState : public Serializable {
 public:
-    std::uint64_t userToUpdate;
+    PlayerUUID userToUpdate;
     PlayerState playerState;
 
     std::vector<std::uint8_t> serialize() const;

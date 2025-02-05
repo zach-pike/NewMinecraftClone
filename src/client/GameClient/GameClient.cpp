@@ -6,8 +6,7 @@
 
 #include "Common/Packets/PacketType.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
-#include "Common/Packets/ChunkRequest/ChunkRequest.hpp"
-#include "Common/Packets/ChunkResponse/ChunkResponse.hpp"
+#include "Common/Packets/ChunkData/ChunkData.hpp"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -159,7 +158,7 @@ void GameClient::_renderThread() {
         return (float)rand() / (float)RAND_MAX;
     };
 
-    playerData.playerPosition = glm::vec3(crand()*10-5, 60, crand()*10-5);
+    playerData.playerPosition = glm::vec3(0, 0, 0);
 
     playerData.cameraPitch = 0;
     playerData.cameraYaw = 0;
@@ -200,10 +199,7 @@ void GameClient::_renderThread() {
     std::chrono::time_point tp1 = std::chrono::steady_clock::now();
     std::chrono::time_point tp2 = std::chrono::steady_clock::now();
 
-    ChunkCoordinate oldChunkCoord{ -1, -1, -1 };
     ChunkCoordinate chunkCoord { 0, 0, 0 };
-
-    bool hasDoneInitialChunkRequests = false;
 
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
@@ -233,25 +229,21 @@ void GameClient::_renderThread() {
                     players[ups.userToUpdate] = ups.playerState;
                 } break;
 
-                case PacketType::ChunkResponse: {
-                    ChunkResponse cr;
+                case PacketType::ChunkData: {
+                    ChunkData cr;
                     cr.decodePacket(message);
-                    auto p = std::find(requestedChunks.begin(), requestedChunks.end(), cr.requestedChunk);
-                    
-                    if (p != requestedChunks.end())
-                        requestedChunks.erase(p);
 
                     auto chunk = std::make_shared<Chunk>();
                     chunk->setBlockData(cr.blockData);
 
-                    chunkManager->getChunks().insert({ cr.requestedChunk, chunk });
+                    chunkManager->getChunks().insert({ cr.chunkCoord, chunk });
 
                     for (int x=-1; x<=1; x++) {
                         for (int y=-1; y<=1; y++) {
                             for (int z=-1; z<=1; z++) {
-                                ChunkCoordinate refChunkCoord{ cr.requestedChunk.x + x,
-                                                    cr.requestedChunk.y + y,
-                                                    cr.requestedChunk.z + z };
+                                ChunkCoordinate refChunkCoord{ cr.chunkCoord.x + x,
+                                                    cr.chunkCoord.y + y,
+                                                    cr.chunkCoord.z + z };
 
                                 if (chunkManager->getChunks().count(refChunkCoord) > 0) {
                                     chunkManager->getChunks().at(refChunkCoord)->markForRedraw();
@@ -264,33 +256,11 @@ void GameClient::_renderThread() {
             }
         }
 
-        if (fc % 5 == 0) {
-            ENetPacket* p = playerData.convToPacket();
-            networkClient.addToOutQueue(p);
-        }
-
         if (networkClient.isConnected()) {
-            // If were in a new chunk then try and load more chunks
-            if (oldChunkCoord != chunkCoord || !hasDoneInitialChunkRequests) {
-                hasDoneInitialChunkRequests = true;
-
-                for (int x=-2; x<=2; x++) {
-                    for (int y=-2; y<=2; y++) {
-                        for (int z=-2; z<=2; z++) {
-                            ChunkCoordinate cc{ chunkCoord.x + x, chunkCoord.y + y, chunkCoord.z + z };
-
-                            bool hasRequestedChunkAlready = std::find(requestedChunks.begin(), requestedChunks.end(), cc) != requestedChunks.end();
-                            if (chunkManager->getChunks().count(cc) < 1 && !hasRequestedChunkAlready) {
-                                ChunkRequest cr;
-                                cr.requestedChunk = cc;
-                                networkClient.addToOutQueue(cr.convToPacket());
-                                requestedChunks.push_back(cc);
-                            }
-                        }
-                    }
-                }
-
-
+            // Do network stuff...
+            if (fc % 5 == 0) {
+                ENetPacket* p = playerData.convToPacket();
+                networkClient.addToOutQueue(p);
             }
         }
 
@@ -421,7 +391,6 @@ void GameClient::_renderThread() {
                 if (ImGui::Button("Connect")) {
                     networkClient.connectToHost(std::string(hostIP), port);
                     players.clear();
-                    hasDoneInitialChunkRequests = false;
                 }
             }
 
@@ -433,8 +402,6 @@ void GameClient::_renderThread() {
         glfwSwapBuffers(window);
 
         glViewport(0, 0, windowWidth, windowHeight);
-
-        oldChunkCoord = chunkCoord;
 
         auto frameEnd = std::chrono::steady_clock::now();
         std::int64_t diff = (frameEnd - frameBegin).count();

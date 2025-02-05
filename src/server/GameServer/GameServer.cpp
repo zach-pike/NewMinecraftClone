@@ -5,16 +5,16 @@
 
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
-#include "Common/Packets/ChunkRequest/ChunkRequest.hpp"
-#include "Common/Packets/ChunkResponse/ChunkResponse.hpp"
+#include "Common/Packets/ChunkData/ChunkData.hpp"
 
 #include <stdexcept>
 #include <functional>
 #include <iostream>
 #include <cstring>
 
-
 #define MAX_CLIENTS 32
+
+#define SERVER_RENDER_DISTANCE 4
 
 void GameServer::_networkThreadFunc() {
     Logger networkThreadLogger("NetworkThread", Logger::Color::PURPLE);
@@ -73,9 +73,19 @@ void GameServer::_networkThreadFunc() {
             case ENET_EVENT_TYPE_CONNECT: {
                 networkThreadLogger.log("A new client connected!");
 
+                std::shared_ptr<Player> player = std::make_shared<Player>(event.peer);
+
                 connectedPlayersLock.lock();
-                connectedPlayers.insert({ event.peer, std::nullopt });
+                connectedPlayers.insert({ event.peer, player });
                 connectedPlayersLock.unlock();
+
+                newPlayersLock.lock();
+                newPlayers.push_back(player);
+                newPlayersLock.unlock();
+
+                playerIDToPlayerMapLock.lock();
+                playerIDToPlayerMap.insert({ player->getPlayerUUID(), player });
+                playerIDToPlayerMapLock.unlock();
             } break;
 
             case ENET_EVENT_TYPE_RECEIVE:{
@@ -92,16 +102,34 @@ void GameServer::_networkThreadFunc() {
 
             case ENET_EVENT_TYPE_DISCONNECT: {
                 networkThreadLogger.log("User disconnected.");
+
+                disconnectingPlayersLock.lock();
+                disconnectingPlayers.push_back(connectedPlayers.at(event.peer));
+                disconnectingPlayersLock.unlock();
+
                 connectedPlayersLock.lock();
                 connectedPlayers.erase(event.peer);
                 connectedPlayersLock.unlock();
+
+                playerIDToPlayerMapLock.lock();
+                playerIDToPlayerMap.erase(Player::getPlayerUUIDFromPeer(event.peer));
+                playerIDToPlayerMapLock.unlock();
             } break;
 
             case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT: {
                 networkThreadLogger.log("User timed out.");
+
+                disconnectingPlayersLock.lock();
+                disconnectingPlayers.push_back(connectedPlayers.at(event.peer));
+                disconnectingPlayersLock.unlock();
+
                 connectedPlayersLock.lock();
                 connectedPlayers.erase(event.peer);
                 connectedPlayersLock.unlock();
+
+                playerIDToPlayerMapLock.lock();
+                playerIDToPlayerMap.erase(Player::getPlayerUUIDFromPeer(event.peer));
+                playerIDToPlayerMapLock.unlock();
             } break;
 
             case ENET_EVENT_TYPE_NONE: break;
@@ -124,6 +152,66 @@ void GameServer::_gameThreadFunc() {
     while(gameThreadRunning) {
         auto tickBegin = std::chrono::steady_clock::now();
 
+        // Handle new players
+        newPlayersLock.lock();
+
+        for (auto& p : newPlayers) {
+            // Load initial chunks
+            auto playerID = p->getPlayerUUID();
+            auto center = p->getPlayerState().getChunkCoordinate();
+            std::set<ChunkCoordinate> loadedChunks;
+
+            for (int y = -SERVER_RENDER_DISTANCE; y <= SERVER_RENDER_DISTANCE; y++) {
+                for (int x = -SERVER_RENDER_DISTANCE; x <= SERVER_RENDER_DISTANCE; x++) {
+                    for (int z = -SERVER_RENDER_DISTANCE; z <= SERVER_RENDER_DISTANCE; z++) {
+                        ChunkCoordinate chunkPos{ center.x + x, center.y + y, center.z + z };
+                        loadedChunks.insert(chunkPos);
+                        chunkSubscribers[chunkPos].insert(playerID);
+
+                        auto chunk = world.getChunk(chunkPos);
+
+                        // Add chunk to out queue for player
+                        ChunkData cd;
+                        cd.chunkCoord = chunkPos;
+                        cd.blockData = std::move(chunk->getBlockData());
+
+                        addToOutQueue(p->getPeer(), cd.convToPacket());
+                    }
+                }
+            }
+
+            playerLoadedChunks[playerID] = std::move(loadedChunks);
+        }
+        
+        newPlayers.clear();
+        newPlayersLock.unlock();
+
+        // Handle disconnecting players
+        disconnectingPlayersLock.lock();
+
+        for (auto& p : disconnectingPlayers) {
+            // Erase all chunk subscriptions
+            PlayerUUID playerID = p->getPlayerUUID();
+
+            auto& loadedChunks = playerLoadedChunks.at(playerID);
+
+            for (auto& c : loadedChunks) {
+                if (!chunkSubscribers.count(c)) continue;
+
+                if (chunkSubscribers.at(c).count(playerID))
+                    chunkSubscribers.at(c).erase(playerID);
+
+                if (chunkSubscribers.at(c).empty())
+                    chunkSubscribers.erase(c);  // Remove empty sets to free memory
+            }
+
+            // Now remove entry from playerLoadedChunks
+            playerLoadedChunks.erase(playerID);
+        }
+
+        disconnectingPlayers.clear();
+        disconnectingPlayersLock.unlock();
+
         // Do work here
         // Process incoming messages
         inQueueLock.lock();
@@ -133,46 +221,39 @@ void GameServer::_gameThreadFunc() {
 
             assert(msgs.packet->dataLength > 0);
             PacketType pt = (PacketType)msgs.packet->data[0];
+            PlayerUUID playerID = Player::getPlayerUUIDFromPeer(msgs.peer);
 
             switch(pt) {
                 case PacketType::PlayerState: {
                     PlayerState ps;
                     ps.decodePacket(msgs.packet);
 
+
                     connectedPlayersLock.lock();
-                    connectedPlayers.at(msgs.peer) = ps;
+                    PlayerState& p = connectedPlayers.at(msgs.peer)->getPlayerState();
+                    bool updateChunks = p.getChunkCoordinate() != ps.getChunkCoordinate();
+                    p = ps;
                     connectedPlayersLock.unlock();
+
+                    // If we have entered new chunks then load them
+                    if (updateChunks)
+                        updatePlayerChunks(playerID);
                 } break;
 
-                case PacketType::ChunkRequest: {
-                    ChunkRequest cr;
-                    cr.decodePacket(msgs.packet);
-                    
-                    std::shared_ptr<ServerChunk> chunk = world.getChunk(cr.requestedChunk);
-
-                    ChunkResponse cresp;
-                    cresp.requestedChunk = cr.requestedChunk;
-                    cresp.blockData = chunk->getBlockData();
-
-                    addToOutQueue(msgs.peer, cresp.convToPacket());
-                } break;
             }
         }
 
         inQueue.clear();
         inQueueLock.unlock();
 
+
         if (tickC % 2 == 0) {
             // Send out player position data
             connectedPlayersLock.lock();
             for (auto& player : connectedPlayers) {
-                if (!player.second.has_value()) continue;
-
-                std::uint64_t id = player.first->address.port;
-
                 UpdatePlayerState ups;
-                ups.userToUpdate = id;
-                ups.playerState = player.second.value();
+                ups.userToUpdate = player.second->getPlayerUUID();
+                ups.playerState = player.second->getPlayerState();
                 
                 ENetPacket* p = ups.convToPacket();
 
@@ -180,6 +261,7 @@ void GameServer::_gameThreadFunc() {
             }
             connectedPlayersLock.unlock();
         }
+
 
         tickC ++;
 
@@ -195,6 +277,53 @@ void GameServer::_gameThreadFunc() {
     }
 
     gameThreadLogger.log("Game Thread stopped!");
+}
+
+void GameServer::updatePlayerChunks(PlayerUUID playerID) {
+    auto& trackedChunks = playerLoadedChunks[playerID];
+
+    playerIDToPlayerMapLock.lock();
+    auto player = playerIDToPlayerMap.at(playerID);
+    playerIDToPlayerMapLock.unlock();
+
+    auto center = player->getPlayerState().getChunkCoordinate();
+
+    std::set<ChunkCoordinate> newChunks;
+
+    // Calculate the new set of visible chunks
+    for (int y = -SERVER_RENDER_DISTANCE; y <= SERVER_RENDER_DISTANCE; y++) {
+        for (int x = -SERVER_RENDER_DISTANCE; x <= SERVER_RENDER_DISTANCE; x++) {
+            for (int z = -SERVER_RENDER_DISTANCE; z <= SERVER_RENDER_DISTANCE; z++) {
+                ChunkCoordinate chunkPos{ center.x + x, center.y + y, center.z + z };
+                newChunks.insert(chunkPos);
+
+                if (!trackedChunks.count(chunkPos)) {  // Player is seeing this chunk for the first time
+                    chunkSubscribers[chunkPos].insert(playerID);
+                    
+                    auto chunk = world.getChunk(chunkPos);
+
+                    // Add chunk to out queue for player
+                    ChunkData cd;
+                    cd.chunkCoord = chunkPos;
+                    cd.blockData = std::move(chunk->getBlockData());
+                    addToOutQueue(player->getPeer(), cd.convToPacket());
+                }        
+            }
+        }
+    }
+
+    // Find and remove chunks that are no longer in view
+    for (const auto& oldChunk : trackedChunks) {
+        if (!newChunks.count(oldChunk)) {  // This chunk is now outside the render distance
+            chunkSubscribers[oldChunk].erase(playerID);
+            if (chunkSubscribers[oldChunk].empty()) {
+                chunkSubscribers.erase(oldChunk);  // Remove empty sets to free memory
+            }
+        }
+    }
+
+    // Update the player's tracked chunks
+    playerLoadedChunks[playerID] = std::move(newChunks);
 }
 
 GameServer::GameServer():
@@ -245,16 +374,12 @@ void GameServer::printPlayerList() {
     connectedPlayersLock.lock();
 
     for (auto& p : connectedPlayers) {
-        printf("Player %x : ", p.first->address.host);
+        printf("Player %x : ", p.second->getPlayerUUID());
 
-        if (p.second.has_value()) {
-            auto& ps = p.second.value();
+        auto playerState = p.second->getPlayerState();
 
-            std::cout << "XYZ: " << ps.playerPosition.x << ", " << ps.playerPosition.y << ", " << ps.playerPosition.z << "\n"
-                      << "CameraPitch: " << ps.cameraPitch << " CameraYaw: " << ps.cameraYaw << "\n";
-        } else {
-            std::cout << "No player state available!\n";
-        }
+        std::cout << "XYZ: " << playerState.playerPosition.x << ", " << playerState.playerPosition.y << ", " << playerState.playerPosition.z << "\n"
+                      << "CameraPitch: " << playerState.cameraPitch << " CameraYaw: " << playerState.cameraYaw << "\n";
     }
 
     connectedPlayersLock.unlock();

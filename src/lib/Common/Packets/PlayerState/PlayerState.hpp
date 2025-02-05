@@ -4,6 +4,7 @@
 #include "enet.h"
 
 #include "Common/Serialize/Serializable.hpp"
+#include "Common/Types.hpp"
 
 class PlayerState : public Serializable {
 public:
@@ -12,6 +13,8 @@ public:
 
     PlayerState() = default;
     ~PlayerState() = default;
+
+    ChunkCoordinate getChunkCoordinate() const;
 
     std::vector<std::uint8_t> serialize() const;
     bool deserialize(const std::vector<std::uint8_t>& data);

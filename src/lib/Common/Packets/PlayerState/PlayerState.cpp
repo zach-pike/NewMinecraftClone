@@ -3,6 +3,18 @@
 #include "Common/Serialize/Serializer.hpp"
 #include "Common/Packets/PacketType.hpp"
 
+static inline int worldToChunkCoord(int worldCoord, int chunkSize) {
+    return (worldCoord < 0) ? ((worldCoord + 1) / chunkSize) - 1 : (worldCoord / chunkSize);
+}
+
+ChunkCoordinate PlayerState::getChunkCoordinate() const {
+    int chunkX = worldToChunkCoord(playerPosition.x, CHUNK_X);
+    int chunkY = worldToChunkCoord(playerPosition.y, CHUNK_Y);
+    int chunkZ = worldToChunkCoord(playerPosition.z, CHUNK_Z);
+
+    return ChunkCoordinate { chunkX, chunkY, chunkZ };
+}
+
 std::vector<std::uint8_t> PlayerState::serialize() const {
     Serializer s;
 

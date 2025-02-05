@@ -1,17 +1,17 @@
-#pragma
+#pragma once
 
 #include "enet.h"
 
 #include "Common/Serialize/Serializable.hpp"
 #include "Common/Types.hpp"
 
-class ChunkResponse : public Serializable {
+class ChunkData : public Serializable {
 public:
-    ChunkCoordinate requestedChunk;
+    ChunkCoordinate chunkCoord;
     std::vector<std::uint8_t> blockData;
 
-    ChunkResponse() = default;
-    ~ChunkResponse() = default;
+    ChunkData() = default;
+    ~ChunkData() = default;
 
     std::vector<std::uint8_t> serialize() const;
     bool deserialize(const std::vector<std::uint8_t>& data);

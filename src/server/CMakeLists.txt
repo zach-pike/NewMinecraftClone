@@ -6,6 +6,7 @@ set(
     Main.cpp
     GameServer/GameServer.cpp
     GameServer/ServerWorld/ServerWorld.cpp
+    GameServer/Player/Player.cpp
     GameServer/ServerWorld/ServerChunk/ServerChunk.cpp
 )
 
