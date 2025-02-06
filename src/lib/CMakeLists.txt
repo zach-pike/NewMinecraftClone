@@ -17,6 +17,7 @@ set(COMMON_SOURCE
     Common/Packets/PlayerState/PlayerState.cpp
     Common/Packets/UpdatePlayerState/UpdatePlayerState.cpp
     Common/Packets/ChunkData/ChunkData.cpp
+    Common/Packets/ChunkUpdate/ChunkUpdate.cpp
 
     Common/Logger/Logger.cpp
 

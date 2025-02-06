@@ -3,6 +3,8 @@
 #include <iostream>
 #include <utility>
 
+#include "Common/Logger/Logger.hpp"
+
 template <typename T>
 inline
 T clamp(T min, T max, T v) {
@@ -33,6 +35,22 @@ void ServerWorld::fillUnplacedBlocks(ChunkCoordinate location, std::shared_ptr<S
 
     // Instead of erasing immediately, keep it until we're sure all are placed
     unplacedBlocks.erase(location);
+}
+
+void ServerWorld::generateWorld() {
+    Logger logger("WorldGeneration", Logger::Color::DARK_BLUE);
+
+    for (int x=-20; x<=20; x++) {
+        for (int y=-20; y<=20; y++) {
+            for (int z=-20; z<=20; z++) {
+                generateChunk(ChunkCoordinate { x, y, z });
+            }
+        }
+
+        float percent = 100.f * (float)(x + 20) / (20 + 20);
+
+        logger.log("Generating world.. " + std::to_string(percent) + "%");
+    }
 }
 
 void ServerWorld::generateChunk(ChunkCoordinate c) {
@@ -123,7 +141,14 @@ void ServerWorld::generateChunk(ChunkCoordinate c) {
                                 if (worldChunks.count(chunkCoord)) {
                                     auto c = worldChunks.at(chunkCoord);
                                     c->setChunkBlock(cLocalX, cLocalY, cLocalZ, 4);
-                                    dirtyChunks.insert(chunkCoord);
+                                    dirtyChunks[chunkCoord].push_back(
+                                        ChunkUpdate::Change{
+                                            ChunkUpdate::ChangeType::PLACE,
+                                            blockCoord,
+                                            4
+                                        }
+                                    );
+
                                 } else {
                                     addUnplacedBlock(chunkCoord, blockCoord, 4);
                                 }
@@ -146,6 +171,6 @@ std::shared_ptr<ServerChunk> ServerWorld::getChunk(ChunkCoordinate c) {
     return worldChunks.at(c);
 }
 
-std::set<ChunkCoordinate>& ServerWorld::getDirtyChunks() {
+std::map<ChunkCoordinate, std::vector<ChunkUpdate::Change>>& ServerWorld::getDirtyChunks() {
     return dirtyChunks;
 }

@@ -1,5 +1,5 @@
  - [ ] Add AABB collision
  - [x] Add blocks in unloaded chunks systsem
  - [x] Limit number of chunk request packets being sent
- - [ ] Use delta system for dirty chunks to stop insane throuput requirements
+ - [x] Use delta system for dirty chunks to stop insane throuput requirements
  - [ ] Text rendering api?

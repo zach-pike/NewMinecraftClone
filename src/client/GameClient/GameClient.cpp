@@ -7,6 +7,7 @@
 #include "Common/Packets/PacketType.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
 #include "Common/Packets/ChunkData/ChunkData.hpp"
+#include "Common/Packets/ChunkUpdate/ChunkUpdate.hpp"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -252,6 +253,35 @@ void GameClient::_renderThread() {
                         }
                     }
 
+                } break;
+
+                case PacketType::ChunkUpdate: {
+                    ChunkUpdate cu;
+                    cu.decodePacket(message);
+
+                    if (chunkManager->getChunks().count(cu.chunkCoord) < 1) {
+                        std::cout << "Recv'd chunk update before chunk was recv'd\n";
+                        break;
+                    }
+
+                    auto chunk = chunkManager->getChunks().at(cu.chunkCoord);
+                    
+                    // Apply updates to chunk
+                    for (auto& change : cu.changes) {
+                        switch(change.type) {
+                            case ChunkUpdate::ChangeType::BREAK: {
+                                chunk->setChunkBlock(change.coord, 0);
+                            } break;
+
+                            case ChunkUpdate::ChangeType::PLACE: {
+                                chunk->setChunkBlock(change.coord, change.blockID);
+                            } break;
+                        }
+                    }
+
+                    if (cu.changes.size() > 0) {
+                        chunk->markForRedraw();
+                    }
                 } break;
             }
         }

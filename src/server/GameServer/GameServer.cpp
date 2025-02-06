@@ -6,6 +6,7 @@
 #include "Common/Packets/PlayerState/PlayerState.hpp"
 #include "Common/Packets/UpdatePlayerState/UpdatePlayerState.hpp"
 #include "Common/Packets/ChunkData/ChunkData.hpp"
+#include "Common/Packets/ChunkUpdate/ChunkUpdate.hpp"
 
 #include <stdexcept>
 #include <functional>
@@ -147,6 +148,10 @@ void GameServer::_gameThreadFunc() {
 
     gameThreadLogger.log("Game Thread Started!");
 
+    gameThreadLogger.log("Pre-generating World...");
+    world.generateWorld();
+    gameThreadLogger.log("World generation done!");
+
     int tickC = 0;
 
     while(gameThreadRunning) {
@@ -218,7 +223,6 @@ void GameServer::_gameThreadFunc() {
 
         for (auto& msgs : inQueue) {
             // Get first byte of packet to determine type
-
             assert(msgs.packet->dataLength > 0);
             PacketType pt = (PacketType)msgs.packet->data[0];
             PlayerUUID playerID = Player::getPlayerUUIDFromPeer(msgs.peer);
@@ -249,21 +253,23 @@ void GameServer::_gameThreadFunc() {
         // Update dirty chunks
         auto& dirtyChunks = world.getDirtyChunks();
 
-        for (auto& chunkCoord : dirtyChunks) {
-            if (chunkSubscribers.count(chunkCoord)) {
-                auto chunk = world.getChunk(chunkCoord);
-                auto& subscribers = chunkSubscribers[chunkCoord];
+        for (auto& updateInfo : dirtyChunks) {
+            if (chunkSubscribers.count(updateInfo.first)) {
+                auto chunk = world.getChunk(updateInfo.first);
+                auto& subscribers = chunkSubscribers[updateInfo.first];
 
-                ChunkData cd;
-                cd.chunkCoord = chunkCoord;
-                cd.blockData = std::move(chunk->getBlockData());
+                ChunkUpdate updates;
+                updates.chunkCoord = updateInfo.first;
+                updates.changes = updateInfo.second;
+
+                updateInfo.second.clear();
 
                 for (const auto& playerID : subscribers) {
                     playerIDToPlayerMapLock.lock();
                     auto player = playerIDToPlayerMap.at(playerID);
                     playerIDToPlayerMapLock.unlock();
 
-                    addToOutQueue(player->getPeer(), cd.convToPacket());
+                    addToOutQueue(player->getPeer(), updates.convToPacket());
                 }
             }
         }
