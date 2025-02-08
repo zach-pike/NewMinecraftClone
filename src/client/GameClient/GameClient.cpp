@@ -9,6 +9,8 @@
 #include "Common/Packets/ChunkData/ChunkData.hpp"
 #include "Common/Packets/ChunkUpdate/ChunkUpdate.hpp"
 
+#include "ChunkManager/AABB/AABB.hpp"
+
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "glm.hpp"
@@ -186,6 +188,7 @@ void GameClient::_renderThread() {
 
     const float mouseSens = .005f;
     const float moveSpeed = 0.18f;
+    float physSpeed = 0.0018f;
 
     bool mouseLocked = false;
     bool mouseLockKeyPressed = false;
@@ -202,11 +205,20 @@ void GameClient::_renderThread() {
 
     ChunkCoordinate chunkCoord { 0, 0, 0 };
 
+    AABBOffsets playerAABB {
+        glm::vec3(-0.5,  0, -0.5),
+        glm::vec3( 0.5,  1,  0.5)
+    };
+
+    bool doPhysStep = false;
+    float drag = 10;
+    float jumpHeight = 0.001;
+
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
         auto frameBegin = std::chrono::steady_clock::now();
 
-        int64_t dt = (tp2 - tp1).count();
+        double dt = (tp2 - tp1).count() / (double) (1e6 * 14);
         
         int chunkX = floorf(playerData.playerPosition.x / CHUNK_X);
         int chunkY = floorf(playerData.playerPosition.y / CHUNK_Y);
@@ -341,32 +353,91 @@ void GameClient::_renderThread() {
             glm::vec3 movement = glm::vec3(0, 0, 0);
             auto looking = getLookingVector(playerData.cameraPitch, playerData.cameraYaw);
 
-            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-                movement += looking;
-            }
+            if (doPhysStep) {
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                    movement += glm::vec3(looking.x, 0, looking.z);
+                }
 
-            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-                movement += -looking;
-            }
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                    movement -= glm::vec3(looking.x, 0, looking.z);
+                }
 
-            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-                movement += glm::vec3(looking.z, 0, -looking.x);
-            }
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                    movement += glm::vec3(looking.z, 0, -looking.x);
+                }
 
-            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                movement += -glm::vec3(looking.z, 0, -looking.x);
-            }
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                    movement += -glm::vec3(looking.z, 0, -looking.x);
+                }
 
-            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-                movement += glm::vec3(0, 1, 0);
-            }
+                if (glm::length(movement) > 0.001f) {
+                    playerData.velocity += glm::normalize(movement) * physSpeed;
+                }
 
-            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-                movement -= glm::vec3(0, 1, 0);
-            }
+                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                    playerData.velocity += glm::vec3(0, 1, 0) * jumpHeight;
+                }
+            } else {
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                    movement += looking;
+                }
 
-            if (glm::length(movement) > 0.01f) {
-                playerData.playerPosition += glm::normalize(movement) * moveSpeed;
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                    movement += -looking;
+                }
+
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                    movement += glm::vec3(looking.z, 0, -looking.x);
+                }
+
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                    movement += -glm::vec3(looking.z, 0, -looking.x);
+                }
+
+                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                    movement += glm::vec3(0, 1, 0);
+                }
+
+                if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && !doPhysStep) {
+                    movement -= glm::vec3(0, 1, 0);
+                }
+
+                if (glm::length(movement) > 0.001f) {
+                    playerData.playerPosition += glm::normalize(movement) * moveSpeed;
+                }
+            }
+        }
+
+        // Physics loop
+        if (doPhysStep) {
+            // apply velocity
+            playerData.playerPosition += playerData.velocity * glm::vec3(dt);
+            playerData.velocity += playerData.acceleration * glm::vec3(dt);
+
+            playerData.velocity *= (1.f - (1.f / (drag + 90.f)));
+
+            // check for collisions
+            auto collisionChunks = getPossibleCollisionChunks(playerData.playerPosition, playerAABB, chunkManager->getChunks());
+            auto collisionsAABBs = getAABBsCollidingWithChunks(playerData.playerPosition, playerAABB, collisionChunks);
+
+            if (!collisionsAABBs.empty()) {
+                for (const AABB& coll : collisionsAABBs) {
+                    glm::vec3 mtv = resolveAABBCollision(playerData.playerPosition, playerAABB, coll.origin, coll.offsets, playerData.velocity);
+
+                    // Resolve collision on each axis separately
+                    if (mtv.x != 0.0f) {
+                        playerData.playerPosition.x += mtv.x;
+                        playerData.velocity.x = 0.0f;
+                    }
+                    if (mtv.y != 0.0f) {
+                        playerData.playerPosition.y += mtv.y;
+                        playerData.velocity.y = 0.0f;
+                    }
+                    if (mtv.z != 0.0f) {
+                        playerData.playerPosition.z += mtv.z;
+                        playerData.velocity.z = 0.0f;
+                    }
+                }
             }
         }
 
@@ -379,25 +450,29 @@ void GameClient::_renderThread() {
 
         glm::mat4 viewProjection = projection * view;
 
-        playerShader->use();
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
+        {
+            playerShader->use();
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
 
-        glBindBuffer(GL_ARRAY_BUFFER, playerVertexBuffer);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+            glBindBuffer(GL_ARRAY_BUFFER, playerVertexBuffer);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-        glBindBuffer(GL_ARRAY_BUFFER, playerUVBuffer);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+            glBindBuffer(GL_ARRAY_BUFFER, playerUVBuffer);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-        glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &viewProjection[0][0]);
-        for (auto& player : players) {
-            glUniform3fv(positionUniform, 1, &player.second.playerPosition[0]);
+            glm::mat4 playerMVP = viewProjection * glm::scale(glm::translate(glm::mat4(1), glm::vec3(0, 0.5, 0)), glm::vec3(0.5, 0.5, 0.5));
 
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glUniformMatrix4fv(mvpUniform, 1, GL_FALSE, &playerMVP[0][0]);
+            for (auto& player : players) {
+                glUniform3fv(positionUniform, 1, &player.second.playerPosition[0]);
+
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+            }
+
+            glDisableVertexAttribArray(0);
+            glDisableVertexAttribArray(1);
         }
-
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
 
         chunkManager->renderWorld(renderInfo, viewProjection);
         chunkManager->tick();
@@ -422,6 +497,20 @@ void GameClient::_renderThread() {
                     networkClient.connectToHost(std::string(hostIP), port);
                     players.clear();
                 }
+            }
+
+            ImGui::InputFloat3("Velocity", &playerData.velocity[0]);
+            ImGui::InputFloat3("Acceleration", &playerData.acceleration[0]);
+
+            ImGui::InputFloat("XZ Drag", &drag);
+            ImGui::InputFloat("Jump height", &jumpHeight);
+            ImGui::InputFloat("Speed", &physSpeed, 0, 0, "%.6f");
+
+            if (!doPhysStep)  {
+                if (ImGui::Button("Enable physics")) doPhysStep = true;
+            } else {
+                if (ImGui::Button("Disable physics")) doPhysStep = false;
+                
             }
 
         ImGui::End();

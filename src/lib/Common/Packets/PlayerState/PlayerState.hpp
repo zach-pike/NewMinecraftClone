@@ -9,6 +9,9 @@
 class PlayerState : public Serializable {
 public:
     glm::vec3 playerPosition;
+    glm::vec3 velocity;
+    glm::vec3 acceleration;
+    
     double cameraPitch, cameraYaw;
 
     PlayerState() = default;

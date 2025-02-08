@@ -17,6 +17,8 @@ struct BlockCoordinate {
     std::int32_t x, y, z;
 };
 
+ChunkCoordinate chunkCoordinateFromWorldspaceCoords(BlockCoordinate bc);
+
 enum class BlockFace : std::uint8_t {
     NegativeX = 0,
     PositiveX = 1,

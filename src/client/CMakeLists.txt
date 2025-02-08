@@ -9,6 +9,7 @@ set(
     GameClient/ChunkManager/ChunkManager.cpp
     GameClient/ChunkManager/Chunk/Chunk.cpp
     GameClient/ChunkManager/Chunk/Block/Block.cpp
+    GameClient/ChunkManager/AABB/AABB.cpp
     GameClient/ChunkManager/ChunkRenderInfo/ChunkRenderInfo.cpp
     
     GL/Shader/Shader.cpp
