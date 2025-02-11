@@ -11,6 +11,8 @@ public:
     glm::vec3 playerPosition;
     glm::vec3 velocity;
     glm::vec3 acceleration;
+    glm::vec3 movementDirection;
+    bool isGrounded;
     
     double cameraPitch, cameraYaw;
 

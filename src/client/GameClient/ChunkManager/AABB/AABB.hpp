@@ -27,7 +27,7 @@ std::vector<std::pair<ChunkCoordinate, std::shared_ptr<Chunk>>> getPossibleColli
 );
 
 // Narrowphase collision 
-std::vector<AABB> getAABBsCollidingWithChunks(
+std::optional<AABB> getAABBCollidingWithChunks(
     glm::vec3 boundingBoxOrigin,
     AABBOffsets offsets,
     const std::vector<std::pair<ChunkCoordinate, std::shared_ptr<Chunk>>>& chunks

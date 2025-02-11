@@ -188,7 +188,7 @@ void GameClient::_renderThread() {
 
     const float mouseSens = .005f;
     const float moveSpeed = 0.18f;
-    float physSpeed = 0.0018f;
+    float physSpeed = 0.18f;
 
     bool mouseLocked = false;
     bool mouseLockKeyPressed = false;
@@ -211,8 +211,13 @@ void GameClient::_renderThread() {
     };
 
     bool doPhysStep = false;
-    float drag = 10;
-    float jumpHeight = 0.001;
+    float airDrag = 0.1f;     // Less drag in air
+    float groundDrag = 4.0f;  // More drag on the ground
+    float jumpHeight = 0.18;
+
+    playerData.movementDirection = glm::vec3(0, 0, 0);
+    playerData.velocity = glm::vec3(0, 0, 0);
+    playerData.acceleration = glm::vec3(0, -0.005, 0);
 
     // Main render loop
     while(!glfwWindowShouldClose(window) && glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
@@ -245,6 +250,8 @@ void GameClient::_renderThread() {
                 case PacketType::ChunkData: {
                     ChunkData cr;
                     cr.decodePacket(message);
+
+                    if (chunkManager->getChunks().contains(cr.chunkCoord)) break;
 
                     auto chunk = std::make_shared<Chunk>();
                     chunk->setBlockData(cr.blockData);
@@ -354,28 +361,34 @@ void GameClient::_renderThread() {
             auto looking = getLookingVector(playerData.cameraPitch, playerData.cameraYaw);
 
             if (doPhysStep) {
+                glm::vec3 movement(0.0f);
+
+                // Get movement input
                 if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
                     movement += glm::vec3(looking.x, 0, looking.z);
                 }
-
                 if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
                     movement -= glm::vec3(looking.x, 0, looking.z);
                 }
-
                 if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
                     movement += glm::vec3(looking.z, 0, -looking.x);
                 }
-
                 if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
                     movement += -glm::vec3(looking.z, 0, -looking.x);
                 }
 
-                if (glm::length(movement) > 0.001f) {
-                    playerData.velocity += glm::normalize(movement) * physSpeed;
-                }
+                // Normalize movement direction
+                glm::vec3 movementDirection = (glm::length(movement) > 0.001f) ? glm::normalize(movement) : glm::vec3(0.0f);
 
-                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-                    playerData.velocity += glm::vec3(0, 1, 0) * jumpHeight;
+                // Store the movement direction for physics calculations
+                playerData.movementDirection = movementDirection;  // <- NEW variable in your struct
+
+                // Update velocity instead of directly modifying position
+                playerData.velocity += movementDirection * physSpeed;
+
+                // Apply jump force correctly
+                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && playerData.isGrounded) {
+                    playerData.velocity.y += jumpHeight; // Jump applies force, no instant position change
                 }
             } else {
                 if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
@@ -410,31 +423,44 @@ void GameClient::_renderThread() {
 
         // Physics loop
         if (doPhysStep) {
-            // apply velocity
-            playerData.playerPosition += playerData.velocity * glm::vec3(dt);
+            playerData.isGrounded = false;
+
+            // Apply acceleration (including gravity)
             playerData.velocity += playerData.acceleration * glm::vec3(dt);
 
-            playerData.velocity *= (1.f - (1.f / (drag + 90.f)));
+            float dragFactor = playerData.isGrounded ? groundDrag : airDrag;
+            playerData.velocity.x *= std::exp(-dragFactor * dt);
+            playerData.velocity.z *= std::exp(-dragFactor * dt);
 
-            // check for collisions
-            auto collisionChunks = getPossibleCollisionChunks(playerData.playerPosition, playerAABB, chunkManager->getChunks());
-            auto collisionsAABBs = getAABBsCollidingWithChunks(playerData.playerPosition, playerAABB, collisionChunks);
+            // Process movement per axis: X → Y → Z
+            glm::vec3 movementAxes[] = { glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1) };
 
-            if (!collisionsAABBs.empty()) {
-                for (const AABB& coll : collisionsAABBs) {
-                    glm::vec3 mtv = resolveAABBCollision(playerData.playerPosition, playerAABB, coll.origin, coll.offsets, playerData.velocity);
+            for (const auto& axis : movementAxes) {
+                glm::vec3 attemptedMovement = axis * playerData.velocity * glm::vec3(dt);
+                glm::vec3 originalPosition = playerData.playerPosition;
+                playerData.playerPosition += attemptedMovement;
 
-                    // Resolve collision on each axis separately
-                    if (mtv.x != 0.0f) {
-                        playerData.playerPosition.x += mtv.x;
+                // Check for collisions along this axis
+                auto collisionChunks = getPossibleCollisionChunks(playerData.playerPosition, playerAABB, chunkManager->getChunks());
+                std::optional<AABB> coll;
+
+                while ((coll = getAABBCollidingWithChunks(playerData.playerPosition, playerAABB, collisionChunks)).has_value()) {
+                    glm::vec3 mtv = resolveAABBCollision(playerData.playerPosition, playerAABB, coll->origin, coll->offsets, attemptedMovement);
+                    
+                    if (axis.x != 0.0f) {
+                        playerData.playerPosition.x = originalPosition.x; // Stop movement
                         playerData.velocity.x = 0.0f;
                     }
-                    if (mtv.y != 0.0f) {
-                        playerData.playerPosition.y += mtv.y;
+                    if (axis.y != 0.0f) {
+                        playerData.playerPosition.y = originalPosition.y; // Stop movement
                         playerData.velocity.y = 0.0f;
+
+                        if (mtv.y > 0.0f) {
+                            playerData.isGrounded = true;
+                        }
                     }
-                    if (mtv.z != 0.0f) {
-                        playerData.playerPosition.z += mtv.z;
+                    if (axis.z != 0.0f) {
+                        playerData.playerPosition.z = originalPosition.z; // Stop movement
                         playerData.velocity.z = 0.0f;
                     }
                 }
@@ -502,7 +528,9 @@ void GameClient::_renderThread() {
             ImGui::InputFloat3("Velocity", &playerData.velocity[0]);
             ImGui::InputFloat3("Acceleration", &playerData.acceleration[0]);
 
-            ImGui::InputFloat("XZ Drag", &drag);
+            ImGui::InputFloat("Floor Drag", &groundDrag);
+            ImGui::InputFloat("Air Drag", &groundDrag);
+
             ImGui::InputFloat("Jump height", &jumpHeight);
             ImGui::InputFloat("Speed", &physSpeed, 0, 0, "%.6f");
 

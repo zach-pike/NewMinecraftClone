@@ -50,15 +50,13 @@ std::vector<std::pair<ChunkCoordinate, std::shared_ptr<Chunk>>> getPossibleColli
     return collidingChunks;
 }
 
-std::vector<AABB> getAABBsCollidingWithChunks(
+std::optional<AABB> getAABBCollidingWithChunks(
     glm::vec3 boundingBoxOrigin,
     AABBOffsets offsets,
     const std::vector<std::pair<ChunkCoordinate, std::shared_ptr<Chunk>>>& chunks
 ) {
     glm::vec3 min = boundingBoxOrigin + offsets.minOffset;
     glm::vec3 max = boundingBoxOrigin + offsets.maxOffset;
-
-    std::vector<AABB> collisions;
 
     for (auto& chunk : chunks) {
         // Loop over each block in the chunk
@@ -91,12 +89,12 @@ std::vector<AABB> getAABBsCollidingWithChunks(
                             blockAABBOffsets
                         )
                     ) {
-                        collisions.push_back(
+                        return
                             AABB {
                             .origin = blockAABBOrigin,
                             .offsets = blockAABBOffsets
                             }
-                        );
+                        ;
                     }
 
                 }
@@ -104,7 +102,7 @@ std::vector<AABB> getAABBsCollidingWithChunks(
         }
     }
 
-    return collisions;
+    return std::nullopt;
 }
 
 glm::vec3 resolveAABBCollision(
@@ -114,24 +112,28 @@ glm::vec3 resolveAABBCollision(
 ) {
     glm::vec3 min1 = origin1 + offset1.minOffset;
     glm::vec3 max1 = origin1 + offset1.maxOffset;
-
     glm::vec3 min2 = origin2 + offset2.minOffset;
     glm::vec3 max2 = origin2 + offset2.maxOffset;
-
     glm::vec3 mtv(0.0f);
 
-    // Calculate overlap on each axis
-    float xOverlap = std::min(max1.x, max2.x) - std::max(min1.x, min2.x);
-    float yOverlap = std::min(max1.y, max2.y) - std::max(min1.y, min2.y);
-    float zOverlap = std::min(max1.z, max2.z) - std::max(min1.z, min2.z);
-
-    // Find the smallest overlap and adjust based on movement direction
-    if (xOverlap < yOverlap && xOverlap < zOverlap) {
-        mtv.x = (movementDirection.x > 0) ? -xOverlap : xOverlap;
-    } else if (yOverlap < xOverlap && yOverlap < zOverlap) {
-        mtv.y = (movementDirection.y > 0) ? -yOverlap : yOverlap;
-    } else {
-        mtv.z = (movementDirection.z > 0) ? -zOverlap : zOverlap;
+    // Calculate overlap only along the movement axis
+    if (movementDirection.x != 0.0f) {
+        float xOverlap = std::min(max1.x, max2.x) - std::max(min1.x, min2.x) + 0.0001f;
+        if (xOverlap > 0) {
+            mtv.x = (movementDirection.x > 0) ? -xOverlap : xOverlap;
+        }
+    }
+    if (movementDirection.y != 0.0f) {
+        float yOverlap = std::min(max1.y, max2.y) - std::max(min1.y, min2.y) + 0.0001f;
+        if (yOverlap > 0) {
+            mtv.y = (movementDirection.y > 0) ? -yOverlap : yOverlap;
+        }
+    }
+    if (movementDirection.z != 0.0f) {
+        float zOverlap = std::min(max1.z, max2.z) - std::max(min1.z, min2.z) + 0.0001f;
+        if (zOverlap > 0) {
+            mtv.z = (movementDirection.z > 0) ? -zOverlap : zOverlap;
+        }
     }
 
     return mtv;

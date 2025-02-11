@@ -15,7 +15,7 @@
 
 #define MAX_CLIENTS 32
 
-#define SERVER_RENDER_DISTANCE 8
+#define SERVER_RENDER_DISTANCE 2
 
 void GameServer::_networkThreadFunc() {
     Logger networkThreadLogger("NetworkThread", Logger::Color::PURPLE);
